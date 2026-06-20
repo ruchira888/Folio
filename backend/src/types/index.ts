@@ -1,9 +1,11 @@
 export type UploadedFile={
-  id:string
-  originalName:string
-  uploadedAt:Date
-  path:string
-  sizeMb:number
+   id: string           // UploadThing file key
+  originalName: string
+  url: string          // UploadThing public URL
+  uploadedAt: Date
+  expiresAt: Date
+  
+  sizeMb: number
 }
 export type ApiResponse<T>={
   success:boolean
@@ -13,10 +15,14 @@ export type ApiResponse<T>={
 
 export type FabricAnnotation={
   type:'highlight'|'shape'|'freehand'|'strikethrough'|'underline'|'tick'
-  fabricJSON:object
+  fabricJSON:Record<string,unknown>
   page:number
 }
-export type SaveAnnotationsBody={
+export type AnnotateRequestBody={
   fileId:string
   annotations:FabricAnnotation[]
+}
+export type SummarizeRequestBody={
+  fileId: string
+  geminiKey: string  // user's own key, never stored
 }
