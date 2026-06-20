@@ -5,7 +5,7 @@ export type UploadedFile={
   path:string
   sizeMb:number
 }
-export type ApiResponse<T>{
+export type ApiResponse<T>={
   success:boolean
   data?:T
   error?:string
