@@ -1,4 +1,4 @@
-export type UploadedFile={
+export type FileRecord={
    id: string           // UploadThing file key
   originalName: string
   url: string          // UploadThing public URL
