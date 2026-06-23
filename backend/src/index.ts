@@ -11,6 +11,10 @@ import { FileReconciler } from './Reconciler/fileReconciler'
 import { logger } from './logger'
 
 dotenv.config()
+if(!process.env.GEMINI_API_KEY){
+  logger.error('GEMINI_API_KEY is not set in .env — summarize will not work')
+  process.exit(1)
+}
 
 export const storage=new UploadThingProvider()
 
@@ -34,3 +38,4 @@ app.use(errorHandler)
 app.listen(PORT,()=>{
   console.log(`Backend runnin on port ${PORT}`)
 })
+

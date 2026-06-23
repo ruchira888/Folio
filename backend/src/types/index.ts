@@ -24,5 +24,5 @@ export type AnnotateRequestBody={
 }
 export type SummarizeRequestBody={
   fileId: string
-  geminiKey: string  // user's own key
+
 }
