@@ -42,7 +42,7 @@ interface FabricLine {
   y2: number
 }
 
-// pdf-parse types are incomplete — define what we actually use
+// pdf-parse types are incomplete define what we actually use
 interface PdfParseResult {
   text: string
   numpages: number
@@ -92,11 +92,11 @@ pdfRouter.post(
           continue
         }
 
-        // height needed to flip Y axis — PDF origin is bottom-left, canvas is top-left
+        // height needed to flip Y axis PDF origin is bottom-left, canvas is top-left
         const { height } = page.getSize()
         const fab = annotation.fabricJSON
 
-        // apply highlight / underline / strikethrough
+       
         switch (annotation.type) {
           case 'highlight': {
             const rect = fab as unknown as FabricRect
@@ -172,8 +172,7 @@ pdfRouter.post(
   }
 )
 
-// ─── SUMMARIZE ──────────────────────────────────────────────────────────────
-
+// SUMMARIZE 
 pdfRouter.post(
   '/:id/summarize',
   summarizeRateLimit,
@@ -191,7 +190,7 @@ pdfRouter.post(
       const buffer = await storage.getBuffer(req.params.id)
 
       // extract text from pdf
-      // cast result because pdf-parse types are incomplete
+      // cast result because pdfparse types are incomplete
       const parsed = await pdfParse(buffer) as unknown as PdfParseResult
 
       // if no text foun likely scanned/image pdf
