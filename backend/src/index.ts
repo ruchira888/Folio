@@ -4,8 +4,8 @@ import dotenv from "dotenv"
 import { createRouteHandler } from 'uploadthing/express'
 import { ourFileRouter } from './uploadthing'
 import {uploadRouter} from './routes/upload'
-import {pdfRouter} from 'routes/pdf'
-import {errorHandler} from './middleware/errorHandler'
+import {pdfRouter} from './routes/pdf'
+
 import { UploadThingProvider } from './storage/UploadThingProvider'
 import { FileReconciler } from './Reconciler/fileReconciler'
 import { logger } from './logger'
@@ -33,7 +33,7 @@ app.use('/api/upload',uploadRouter)
 
 app.use('/api/pdf',pdfRouter)
 
-app.use(errorHandler)
+
 
 app.listen(PORT,()=>{
   console.log(`Backend runnin on port ${PORT}`)

@@ -1,5 +1,5 @@
 import express, { Request, Response, NextFunction } from 'express'
-import rateLimit from 'express-rate-limit'
+import rateLimit,{ipKeyGenerator} from 'express-rate-limit'
 import { PDFDocument, rgb } from 'pdf-lib'
 import pdfParse from 'pdf-parse'
 import { storage } from '../index'
@@ -8,7 +8,7 @@ import { summarizePdf } from '../services/summaryService'
 import { logger } from '../logger'
 
 export const pdfRouter = express.Router()
-
+//expres ratelimit tracks req per ip add alzo uses inmemory store to req 
 const summarizeRateLimit = rateLimit({
   windowMs: 24 * 60 * 60 * 1000,
   max: Number(process.env.SUMMARIZE_RATE_LIMIT_PER_DAY || 10),
@@ -16,7 +16,7 @@ const summarizeRateLimit = rateLimit({
     success: false,
     error: 'Daily summarize limit reached. Try again tomorrow.'
   },
-  keyGenerator: (req) => req.ip ?? 'unknown'
+  
 })
 
 const hexToRgb = (hex: string): [number, number, number] => {
