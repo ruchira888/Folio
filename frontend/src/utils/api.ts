@@ -1,44 +1,130 @@
-const BASE_URL=import.meta.env.VITE_API_BASE_URL
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001'
 
-export async function uploadComplete(fileKey:string
-  ,url:string,originalName:string,sizeMb:number){
-    const response=await fetch(
-      `${BASE_URL}/upload/complete`,{
-        method:'POST',
-      
-      headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({
-        fileKey,
-  url,originalName,sizeMb
-      
-      })
-    }
-  )
-  if(!response.ok){
-    throw new Error('Upload registration failed')
-  }
-  return response.json()
+export interface FileRecord {
+  id: string
+  originalName: string
+  url: string
+  uploadedAt: string
+  expiresAt: string
+  sizeMb: number
 }
-export async function getFileMetadata(fileId:string){
-  const metadata=await fetch(`${BASE_URL}/upload/${fileId}`,{
-   
-    method:'GET'
-  }
-  )
 
-  if(!metadata.ok){
-    throw new Error('fetchin  metadata failed')
-  }
-  return metadata.json()
+export interface ApiResponse<T> {
+  success: boolean
+  data?: T
+  error?: string
 }
-export async function summarize(fileId:string) {
-  const summarize=await fetch(`${BASE_URL}/pdf/${fileId}/summarize`,
-    
-    {
-      method:'POST'
-    })
-   if(!summarize.ok){
-    throw new Error('PDF summarization failed')
+
+export interface SummaryResponse {
+  summary: string
+  pages: number
+}
+
+/**
+ * Register uploaded file metadata with backend
+ * Called after UploadThing upload completes
+ */
+export async function uploadComplete(
+  fileKey: string,
+  url: string,
+  originalName: string,
+  sizeMb: number
+): Promise<FileRecord> {
+  const response = await fetch(`${API_BASE_URL}/api/upload/complete`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      fileKey,
+      url,
+      originalName,
+      sizeMb,
+    }),
+  })
+
+  if (!response.ok) {
+    const error = await response.json()
+    throw new Error(error.error || 'Failed to register file')
   }
-  return summarize.json()
+
+  const data: ApiResponse<FileRecord> = await response.json()
+  if (!data.success || !data.data) {
+    throw new Error('Invalid response from server')
+  }
+
+  return data.data
+}
+
+/**
+ * Get file metadata by ID
+ */
+export async function getFileMetadata(fileId: string): Promise<FileRecord> {
+  const response = await fetch(`${API_BASE_URL}/api/upload/${fileId}`)
+
+  if (!response.ok) {
+    const error = await response.json()
+    throw new Error(error.error || 'File not found')
+  }
+
+  const data: ApiResponse<FileRecord> = await response.json()
+  if (!data.success || !data.data) {
+    throw new Error('Invalid response from server')
+  }
+
+  return data.data
+}
+
+/**
+ * Summarize PDF using Gemini AI
+ * Extracts text from PDF and generates summary
+ */
+export async function summarizePdf(fileId: string): Promise<SummaryResponse> {
+  const response = await fetch(`${API_BASE_URL}/api/pdf/${fileId}/summarize`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ fileId }),
+  })
+
+  if (!response.ok) {
+    const error = await response.json()
+    throw new Error(error.error || 'Failed to summarize PDF')
+  }
+
+  const data: ApiResponse<SummaryResponse> = await response.json()
+  if (!data.success || !data.data) {
+    throw new Error('Invalid response from server')
+  }
+
+  return data.data
+}
+
+/**
+ * Annotate PDF with Fabric.js annotations
+ */
+export async function annotatePdf(
+  fileId: string,
+  annotations: unknown[]
+): Promise<{ downloadId: string; url: string }> {
+  const response = await fetch(`${API_BASE_URL}/pdf/${fileId}/annotate`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ fileId, annotations }),
+  })
+
+  if (!response.ok) {
+    const error = await response.json()
+    throw new Error(error.error || 'Failed to annotate PDF')
+  }
+
+  const data: ApiResponse<{ downloadId: string; url: string }> = await response.json()
+  if (!data.success || !data.data) {
+    throw new Error('Invalid response from server')
+  }
+
+  return data.data
 }

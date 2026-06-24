@@ -1,12 +1,14 @@
-import React, { useState, useRef } from 'react';
+import React, { useState } from 'react';
 import { 
   Search, Sparkles, PenTool, GitMerge, Files, Languages, 
-  Minimize2, FileText, Lock, LayoutGrid, ShieldCheck, EyeOff, Monitor 
+  Minimize2, FileText, Lock, LayoutGrid, ShieldCheck, EyeOff, Monitor,
+  Zap, Eye, Activity
 } from 'lucide-react';
-import { motion, useScroll, useTransform } from 'framer-motion';
+import ToolCard from './ToolCard';
+import { isModalTool, type ToolType } from '../config/toolConfigs';
 
 interface ToolsGridProps {
-  setActiveTool: (tool: string) => void
+  setActiveTool: (tool: ToolType) => void;
 }
 interface ToolItem {
   id: string;
@@ -14,45 +16,29 @@ interface ToolItem {
   title: string;
   description: string;
   tag: string;
+  tagIcon?: React.ComponentType<any>;
   icon: React.ComponentType<any>;
   color: string;
   avatars?: string[];
   avatarCount?: string;
   isSpecial?: boolean;
+  row: number;
 }
 
 export default function ToolsGrid({
   setActiveTool
 }: ToolsGridProps) {
   const [searchQuery, setSearchQuery] = useState('');
-  const containerRef = useRef<HTMLDivElement>(null);
-
-  const { scrollYProgress } = useScroll({
-    target: containerRef,
-    offset: ["start end", "end start"]
-  });
-
-  // Elegant scroll dynamics (emerges out of the clouds and blurs)
-  const y = useTransform(scrollYProgress, [0, 0.4], [120, 0]);
-  const opacity = useTransform(scrollYProgress, [0, 0.3], [0.4, 1]);
-  const backdropFilter = useTransform(
-    scrollYProgress,
-    [0, 0.35],
-    ["blur(4px)", "blur(24px)"]
-  );
-  const backgroundColor = useTransform(
-    scrollYProgress,
-    [0, 0.35],
-    ["rgba(255, 255, 255, 0.2)", "rgba(250, 249, 252, 0.55)"]
-  );
 
   const tools: ToolItem[] = [
+    // Row 1: 3 columns
     {
       id: 'summarize',
       category: 'AI ASSISTANT',
       title: 'Summarize PDF',
       description: 'Get AI-generated summaries of your PDF in seconds.',
       tag: 'AI Powered',
+      tagIcon: Sparkles,
       icon: Sparkles,
       color: 'pink',
       avatars: [
@@ -60,7 +46,8 @@ export default function ToolsGrid({
         'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=100&h=100&q=80',
         'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=100&h=100&q=80'
       ],
-      avatarCount: '+8K'
+      avatarCount: '+8K',
+      row: 1
     },
     {
       id: 'annotate',
@@ -68,13 +55,15 @@ export default function ToolsGrid({
       title: 'Annotate PDF',
       description: 'Highlight, draw, and add notes to your PDF with ease.',
       tag: 'Freehand + Shapes',
+      tagIcon: Activity,
       icon: PenTool,
       color: 'blue',
       avatars: [
         'https://images.unsplash.com/photo-1517841905240-472988babdf9?auto=format&fit=crop&w=100&h=100&q=80',
         'https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?auto=format&fit=crop&w=100&h=100&q=80'
       ],
-      avatarCount: '+6K'
+      avatarCount: '+6K',
+      row: 1
     },
     {
       id: 'merge',
@@ -82,15 +71,19 @@ export default function ToolsGrid({
       title: 'Merge PDF',
       description: 'Combine multiple PDF files into a single document.',
       tag: 'Fast & Easy',
+      tagIcon: Zap,
       icon: GitMerge,
-      color: 'green'
+      color: 'green',
+      row: 1
     },
+    // Row 2: 2 columns (wider)
     {
       id: 'compare',
       category: 'COMPARE',
       title: 'Compare PDFs',
       description: 'Spot differences between two PDF files instantly.',
       tag: 'Visual + Text Diff',
+      tagIcon: Eye,
       icon: Files,
       color: 'yellow',
       avatars: [
@@ -98,7 +91,8 @@ export default function ToolsGrid({
         'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=100&h=100&q=80',
         'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?auto=format&fit=crop&w=100&h=100&q=80'
       ],
-      avatarCount: '+3K'
+      avatarCount: '+3K',
+      row: 2
     },
     {
       id: 'translate',
@@ -106,17 +100,22 @@ export default function ToolsGrid({
       title: 'Translate PDF',
       description: 'Translate your PDF to any language with one click.',
       tag: 'AI Translation',
+      tagIcon: Sparkles,
       icon: Languages,
-      color: 'purple'
+      color: 'purple',
+      row: 2
     },
+    // Row 3: 3 columns
     {
       id: 'compress',
       category: 'COMPRESS',
       title: 'Compress PDF',
       description: 'Reduce PDF file size without losing quality.',
       tag: 'High Quality',
+      tagIcon: ShieldCheck,
       icon: Minimize2,
-      color: 'orange'
+      color: 'orange',
+      row: 3
     },
     {
       id: 'convert',
@@ -124,8 +123,10 @@ export default function ToolsGrid({
       title: 'Convert to PDF',
       description: 'Convert Word, Excel, images and more to PDF.',
       tag: 'Many Formats',
+      tagIcon: FileText,
       icon: FileText,
-      color: 'sky'
+      color: 'sky',
+      row: 3
     },
     {
       id: 'protect',
@@ -133,9 +134,12 @@ export default function ToolsGrid({
       title: 'Protect PDF',
       description: 'Password protect your PDF and keep it secure.',
       tag: 'Secure',
+      tagIcon: Lock,
       icon: Lock,
-      color: 'rose'
+      color: 'rose',
+      row: 3
     },
+    // Row 4: Full-width
     {
       id: 'more',
       category: 'MORE TOOLS',
@@ -144,7 +148,8 @@ export default function ToolsGrid({
       tag: '',
       icon: LayoutGrid,
       color: 'indigo',
-      isSpecial: true
+      isSpecial: true,
+      row: 4
     }
   ];
 
@@ -173,22 +178,22 @@ export default function ToolsGrid({
       case 'green':
         return {
           bg: 'bg-[#F4FBF7] hover:bg-[#EDF8F2]',
-          border: 'border-[#E2F7EB]',
-          iconBg: 'bg-[#E2F7EB] text-[#10B981]',
+          border: 'border-[#D6F0E2]',
+          iconBg: 'bg-[#D6F0E2] text-[#10B981]',
           tagBg: 'bg-[#EDF8F2] text-[#10B981]',
         };
       case 'yellow':
         return {
-          bg: 'bg-[#FCFAF2] hover:bg-[#FAF6E6]',
-          border: 'border-[#F8F2D5]',
-          iconBg: 'bg-[#F8F2D5] text-[#D97706]',
-          tagBg: 'bg-[#FAF6E6] text-[#D97706]',
+          bg: 'bg-[#FFFCF2] hover:bg-[#FFF8E6]',
+          border: 'border-[#F5EDCF]',
+          iconBg: 'bg-[#F5EDCF] text-[#D97706]',
+          tagBg: 'bg-[#FFF8E6] text-[#D97706]',
         };
       case 'purple':
         return {
           bg: 'bg-[#FAF8FF] hover:bg-[#F4F0FF]',
-          border: 'border-[#F0E6FF]',
-          iconBg: 'bg-[#F0E6FF] text-[#8B5CF6]',
+          border: 'border-[#EBE0FF]',
+          iconBg: 'bg-[#EBE0FF] text-[#8B5CF6]',
           tagBg: 'bg-[#F4F0FF] text-[#8B5CF6]',
         };
       case 'orange':
@@ -222,136 +227,166 @@ export default function ToolsGrid({
     }
   };
 
+  // Group filtered tools by row for the specific layout
+  const row1 = filteredTools.filter(t => t.row === 1);
+  const row2 = filteredTools.filter(t => t.row === 2);
+  const row3 = filteredTools.filter(t => t.row === 3);
+  const row4 = filteredTools.filter(t => t.row === 4);
+  const hasResults = filteredTools.length > 0;
+
   return (
-    <div ref={containerRef} className="relative z-20 w-full max-w-[1240px] mx-auto px-4 sm:px-6 md:px-8 -mt-20 md:-mt-28 mb-16">
-      {/* Floating Tool Section Container Card with Glassmorphism and Framer Motion Scroll Effects */}
-      <motion.div
-        style={{ y, opacity, backdropFilter, backgroundColor }}
-        className="rounded-[32px] md:rounded-[40px] border border-white/30 shadow-[0_-12px_40px_-10px_rgba(15,23,42,0.02),0_24px_48px_-15px_rgba(15,23,42,0.05)] p-6 sm:p-8 md:p-12"
+    <div className="relative z-20 w-full max-w-[1100px] mx-auto px-4 sm:px-6 md:px-8 mt-6 md:mt-10 mb-16">
+      {/* Tool Section Container Card - clean, solid and elegant */}
+      <div
+        className="rounded-[28px] md:rounded-[36px] border border-white/80 bg-[#FAF8FB]/95 backdrop-blur-xl shadow-[0_12px_40px_-12px_rgba(0,0,0,0.05)] p-5 sm:p-7 md:p-10"
       >
         
         {/* Header content and search box */}
-        <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-10 pb-6 border-b border-slate-100">
+        <div className="flex flex-col md:flex-row md:items-end justify-between gap-5 mb-8 pb-5 border-b border-slate-100/80">
           <div className="text-left">
-            <h3 className="text-3xl md:text-[34px] font-medium text-[#0F172A] mb-2 font-serif">
+            <h3 className="text-2xl md:text-[30px] font-medium text-[#0F172A] mb-1.5 font-serif">
               All PDF Tools
             </h3>
-            <p className="text-[15px] text-slate-500 font-medium font-sans">
+            <p className="text-[14px] text-slate-400 font-medium font-sans">
               Powerful tools to work with your PDFs in simple steps.
             </p>
           </div>
 
           {/* Search Box input */}
-          <div className="relative w-full md:w-80">
-            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-[18px] h-[18px] text-slate-400 pointer-events-none" />
+          <div className="relative w-full md:w-72">
+            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-[16px] h-[16px] text-slate-300 pointer-events-none" />
             <input
               type="text"
               placeholder="Search tools..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-11 pr-5 py-3 rounded-full border border-slate-200/80 bg-white text-[14px] text-slate-800 font-medium placeholder-slate-400 focus:outline-none focus:border-indigo-400/80 focus:ring-4 focus:ring-indigo-100/50 transition-all font-sans"
+              className="w-full pl-10 pr-4 py-2.5 rounded-full border border-slate-200/70 bg-white/80 text-[13px] text-slate-800 font-medium placeholder-slate-300 focus:outline-none focus:border-indigo-300/80 focus:ring-3 focus:ring-indigo-100/40 transition-all font-sans"
             />
           </div>
         </div>
 
-        {/* Tools Cards Grid */}
-        {filteredTools.length > 0 ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5 md:gap-6 text-left">
-            {filteredTools.map((tool) => {
+        {/* Tools Cards Grid — Specific row-based layout */}
+        {hasResults ? (
+          <div className="flex flex-col gap-4 md:gap-5 text-left">
+            {/* Row 1: 3 equal columns */}
+            {row1.length > 0 && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-5">
+                {row1.map((tool) => {
+                  const styles = getColorStyles(tool.color);
+                  const Icon = tool.icon;
+                  return (
+                    <ToolCard
+                      key={tool.id}
+                      category={tool.category}
+                      title={tool.title}
+                      description={tool.description}
+                      tag={tool.tag}
+                      tagIcon={tool.tagIcon}
+                      icon={Icon}
+                      styles={styles}
+                      avatars={tool.avatars}
+                      avatarCount={tool.avatarCount}
+                      onClick={
+                        isModalTool(tool.id)
+                          ? () => setActiveTool(tool.id)
+                          : undefined
+                      }
+                    />
+                  );
+                })}
+              </div>
+            )}
+
+            {/* Row 2: 2 wider columns */}
+            {row2.length > 0 && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 md:gap-5">
+                {row2.map((tool) => {
+                  const styles = getColorStyles(tool.color);
+                  const Icon = tool.icon;
+                  return (
+                    <ToolCard
+                      key={tool.id}
+                      category={tool.category}
+                      title={tool.title}
+                      description={tool.description}
+                      tag={tool.tag}
+                      tagIcon={tool.tagIcon}
+                      icon={Icon}
+                      styles={styles}
+                      avatars={tool.avatars}
+                      avatarCount={tool.avatarCount}
+                      onClick={
+                        isModalTool(tool.id)
+                          ? () => setActiveTool(tool.id)
+                          : undefined
+                      }
+                    />
+                  );
+                })}
+              </div>
+            )}
+
+            {/* Row 3: 3 equal columns */}
+            {row3.length > 0 && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-5">
+                {row3.map((tool) => {
+                  const styles = getColorStyles(tool.color);
+                  const Icon = tool.icon;
+                  return (
+                    <ToolCard
+                      key={tool.id}
+                      category={tool.category}
+                      title={tool.title}
+                      description={tool.description}
+                      tag={tool.tag}
+                      tagIcon={tool.tagIcon}
+                      icon={Icon}
+                      styles={styles}
+                      avatars={tool.avatars}
+                      avatarCount={tool.avatarCount}
+                      onClick={
+                        isModalTool(tool.id)
+                          ? () => setActiveTool(tool.id)
+                          : undefined
+                      }
+                    />
+                  );
+                })}
+              </div>
+            )}
+
+            {/* Row 4: Full-width "And more tools" card */}
+            {row4.map((tool) => {
               const styles = getColorStyles(tool.color);
               const Icon = tool.icon;
-
-              if (tool.isSpecial) {
-                return (
-                  <div
-                    key={tool.id}
-                    className={`flex flex-col justify-between p-6 md:p-8 rounded-2xl border ${styles.border} ${styles.bg} transition-all duration-300 shadow-sm relative overflow-hidden`}
-                  >
-                    <div>
-                      {/* Icon & Category */}
-                      <div className="flex items-center gap-3 mb-6">
-                        <div className={`p-2.5 rounded-xl ${styles.iconBg}`}>
-                          <Icon className="w-5 h-5" />
-                        </div>
-                        <span className="text-[11px] font-bold tracking-wider text-slate-400 font-sans">
-                          {tool.category}
-                        </span>
-                      </div>
-
-                      {/* Title & Description */}
-                      <h4 className="text-xl font-bold text-[#0F172A] mb-2 font-serif">
-                        {tool.title}
-                      </h4>
-                      <p className="text-[14px] leading-relaxed text-slate-500 font-medium font-sans">
-                        {tool.description}
-                      </p>
-                    </div>
-
-                    <div className="mt-8 flex justify-end">
-                      <button className="bg-white text-[#0F172A] font-semibold text-[13px] px-5 py-2.5 rounded-full border border-slate-200 shadow-sm hover:bg-slate-50 active:scale-[0.98] transition-all">
-                        View all tools
-                      </button>
-                    </div>
-                  </div>
-                );
-              }
-
               return (
                 <div
                   key={tool.id}
-                  className={`flex flex-col justify-between p-6 md:p-8 rounded-2xl border ${styles.border} ${styles.bg} hover:shadow-md hover:shadow-slate-100/80 hover:-translate-y-0.5 transition-all duration-300 group cursor-pointer`}
-                  onClick={() => {
-  if (tool.id === 'summarize') {
-    setActiveTool('summarize')
-  }
-}}
+                  className={`flex flex-col sm:flex-row items-start sm:items-center justify-between p-5 md:p-6 rounded-2xl border ${styles.border} ${styles.bg} transition-all duration-300`}
                 >
-                  <div>
-                    {/* Icon & Category */}
-                    <div className="flex items-center gap-3 mb-6">
-                      <div className={`p-2.5 rounded-xl ${styles.iconBg} group-hover:scale-105 transition-transform`}>
-                        <Icon className="w-5 h-5" />
-                      </div>
-                      <span className="text-[11px] font-bold tracking-wider text-slate-400 font-sans">
-                        {tool.category}
-                      </span>
+                  <div className="flex items-center gap-4">
+                    <div className={`p-2.5 rounded-xl ${styles.iconBg} flex-shrink-0`}>
+                      <Icon className="w-5 h-5" />
                     </div>
-
-                    {/* Title & Description */}
-                    <h4 className="text-xl font-bold text-[#0F172A] mb-2 font-serif group-hover:text-slate-900">
-                      {tool.title}
-                    </h4>
-                    <p className="text-[14px] leading-relaxed text-slate-500 font-medium font-sans">
-                      {tool.description}
-                    </p>
-                  </div>
-
-                  {/* Badges and Users Row */}
-                  <div className="mt-8 pt-4 border-t border-slate-200/40 flex items-center justify-between flex-wrap gap-3">
-                    {tool.tag && (
-                      <span className={`text-[11px] font-semibold px-3 py-1 rounded-full ${styles.tagBg}`}>
-                        {tool.tag}
-                      </span>
-                    )}
-                    
-                    {tool.avatars && (
-                      <div className="flex items-center gap-2 ml-auto">
-                        <div className="flex -space-x-2">
-                          {tool.avatars.map((url, i) => (
-                            <img
-                              key={i}
-                              src={url}
-                              alt="User avatar"
-                              className="w-6 h-6 rounded-full border border-white object-cover shadow-sm"
-                            />
-                          ))}
-                        </div>
-                        <span className="text-[11px] font-bold text-slate-400">
-                          {tool.avatarCount}
+                    <div>
+                      <div className="flex items-center gap-2.5 mb-0.5">
+                        <span className="text-[10px] font-bold tracking-[0.12em] uppercase text-slate-400 font-sans">
+                          {tool.category}
                         </span>
                       </div>
-                    )}
+                      <h4 className="text-lg font-bold text-[#0F172A] font-serif">
+                        {tool.title}
+                      </h4>
+                      <p className="text-[13px] text-slate-400 font-medium font-sans mt-0.5">
+                        {tool.description}
+                      </p>
+                    </div>
                   </div>
+
+                  <button className="mt-4 sm:mt-0 bg-white text-[#0F172A] font-semibold text-[12px] px-4 py-2.5 rounded-full border border-slate-200 shadow-sm hover:bg-slate-50 active:scale-[0.98] transition-all flex items-center gap-2 flex-shrink-0">
+                    <LayoutGrid className="w-3.5 h-3.5" />
+                    View all tools
+                  </button>
                 </div>
               );
             })}
@@ -363,22 +398,22 @@ export default function ToolsGrid({
         )}
 
         {/* Core Promises Footer */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 pt-10 mt-10 border-t border-slate-100 text-center font-sans">
-          <div className="flex items-center justify-center gap-2.5 text-slate-500 font-medium text-[13.5px]">
-            <ShieldCheck className="w-5 h-5 text-emerald-500 flex-shrink-0" />
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-5 pt-8 mt-8 border-t border-slate-100/60 text-center font-sans">
+          <div className="flex items-center justify-center gap-2 text-slate-400 font-medium text-[12.5px]">
+            <ShieldCheck className="w-4 h-4 text-emerald-400 flex-shrink-0" />
             <span>Your files are secure and private.</span>
           </div>
-          <div className="flex items-center justify-center gap-2.5 text-slate-500 font-medium text-[13.5px] border-y sm:border-y-0 sm:border-x border-slate-100 py-3 sm:py-0">
-            <EyeOff className="w-5 h-5 text-indigo-500 flex-shrink-0" />
+          <div className="flex items-center justify-center gap-2 text-slate-400 font-medium text-[12.5px] border-y sm:border-y-0 sm:border-x border-slate-100/60 py-3 sm:py-0">
+            <EyeOff className="w-4 h-4 text-indigo-400 flex-shrink-0" />
             <span>We never store your documents.</span>
           </div>
-          <div className="flex items-center justify-center gap-2.5 text-slate-500 font-medium text-[13.5px]">
-            <Monitor className="w-5 h-5 text-blue-500 flex-shrink-0" />
+          <div className="flex items-center justify-center gap-2 text-slate-400 font-medium text-[12.5px]">
+            <Monitor className="w-4 h-4 text-blue-400 flex-shrink-0" />
             <span>Works on any device.</span>
           </div>
         </div>
 
-      </motion.div>
+      </div>
     </div>
   );
 }

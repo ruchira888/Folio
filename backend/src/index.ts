@@ -33,7 +33,14 @@ app.use('/api/upload',uploadRouter)
 
 app.use('/api/pdf',pdfRouter)
 
-
+// Error handler middleware - must be last
+app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
+  logger.error(`Error: ${err.message}`, err)
+  res.status(500).json({
+    success: false,
+    error: err.message || 'Internal server error'
+  })
+})
 
 app.listen(PORT,()=>{
   console.log(`Backend runnin on port ${PORT}`)

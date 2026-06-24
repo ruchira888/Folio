@@ -16,7 +16,7 @@ const summarizeRateLimit = rateLimit({
     success: false,
     error: 'Daily summarize limit reached. Try again tomorrow.'
   },
-  
+  skip: () => process.env.NODE_ENV !== 'production' // Disable in development
 })
 
 const hexToRgb = (hex: string): [number, number, number] => {
@@ -193,6 +193,16 @@ pdfRouter.post(
       // cast result because pdfparse types are incomplete
       const parsed = await pdfParse(buffer) as unknown as PdfParseResult
 
+      logger.info(`PDF parsed: numpages=${parsed.numpages}, pages length=${Array.isArray((parsed as any).pages) ? (parsed as any).pages.length : 'not array'}, numPages=${(parsed as any).numPages}`)
+
+      // Determine page count (pdf-parse returns different field names)
+      let totalPages = parsed.numpages || (parsed as any).numPages || 1
+      if (Array.isArray((parsed as any).pages)) {
+        totalPages = (parsed as any).pages.length
+      }
+
+      logger.info(`Final totalPages: ${totalPages}`)
+
       // if no text foun likely scanned/image pdf
       if (!parsed.text?.trim()) {
         res.status(422).json({
@@ -203,9 +213,9 @@ pdfRouter.post(
       }
 
       // summarize extracted text
-      const summary = await summarizePdf(parsed.text, parsed.numpages)
+      const summary = await summarizePdf(parsed.text, totalPages)
 
-      logger.info(`Summarized: ${req.params.id} (${parsed.numpages} pages)`)
+      logger.info(`Summarized: ${req.params.id} (${totalPages} pages)`)
 
       // return summary + page count
       res.json({

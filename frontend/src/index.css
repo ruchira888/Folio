@@ -7,7 +7,18 @@
 
 @layer base {
   body {
-    @apply bg-[#f4f5f8] text-[#334155] font-sans antialiased overflow-x-hidden;
+    @apply bg-[#f0edf6] text-[#334155] font-sans antialiased overflow-x-hidden;
+    background: linear-gradient(
+      180deg,
+      #e8e0f0 0%,
+      #ede6f4 8%,
+      #f2ecf8 20%,
+      #f5f0fa 40%,
+      #f7f3fb 60%,
+      #f4f0f8 80%,
+      #eee8f3 100%
+    );
+    min-height: 100vh;
   }
 
   h1, h2, h3 {
@@ -27,11 +38,14 @@ html {
 
 /* Custom scrollbar */
 ::-webkit-scrollbar {
-  width: 10px;
+  width: 8px;
 }
 ::-webkit-scrollbar-track {
-  @apply bg-slate-100;
+  @apply bg-[#f0edf6];
 }
 ::-webkit-scrollbar-thumb {
-  @apply bg-slate-300 rounded-full hover:bg-slate-400 transition-colors;
+  @apply bg-[#c4b8d9] rounded-full;
+}
+::-webkit-scrollbar-thumb:hover {
+  @apply bg-[#a899c2];
 }
