@@ -5,6 +5,9 @@ import {
 } from 'lucide-react';
 import { motion, useScroll, useTransform } from 'framer-motion';
 
+interface ToolsGridProps {
+  setActiveTool: (tool: string) => void
+}
 interface ToolItem {
   id: string;
   category: string;
@@ -18,7 +21,9 @@ interface ToolItem {
   isSpecial?: boolean;
 }
 
-export default function ToolsGrid() {
+export default function ToolsGrid({
+  setActiveTool
+}: ToolsGridProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -295,6 +300,11 @@ export default function ToolsGrid() {
                 <div
                   key={tool.id}
                   className={`flex flex-col justify-between p-6 md:p-8 rounded-2xl border ${styles.border} ${styles.bg} hover:shadow-md hover:shadow-slate-100/80 hover:-translate-y-0.5 transition-all duration-300 group cursor-pointer`}
+                  onClick={() => {
+  if (tool.id === 'summarize') {
+    setActiveTool('summarize')
+  }
+}}
                 >
                   <div>
                     {/* Icon & Category */}

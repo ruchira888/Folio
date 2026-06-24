@@ -26,18 +26,7 @@ export default function Hero() {
           Powered by <span className="text-[#EC4899] font-bold">AI</span>.
         </p>
 
-        {/* CTA Button Actions */}
-        <div className="flex flex-col sm:flex-row items-center gap-3">
-          <button className="flex items-center gap-2 bg-[#0F172A] text-white font-medium px-6 py-3.5 rounded-xl hover:bg-slate-800 hover:shadow-lg hover:shadow-slate-800/10 active:scale-[0.98] transition-all">
-            <CloudUpload className="w-5 h-5" />
-            Upload PDF
-          </button>
-          
-          <button className="flex items-center gap-2 bg-white text-slate-700 font-medium px-6 py-3.5 rounded-xl border border-slate-200/80 hover:bg-slate-50 hover:shadow-sm active:scale-[0.98] transition-all">
-            Explore all tools
-            <ArrowRight className="w-4 h-4 text-slate-600" />
-          </button>
-        </div>
+      
       </div>
     </div>
   );

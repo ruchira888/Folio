@@ -1,8 +1,12 @@
 import Navbar from './components/Navbar';
 import Hero from './components/Hero';
 import ToolsGrid from './components/ToolsGrid';
+import { useState } from 'react';
+
+
 
 function App() {
+  const [activeTool, setActiveTool] = useState<string | null>(null)
   return (
     <div className="min-h-screen bg-[#f4f5f8] flex flex-col w-full selection:bg-indigo-100 selection:text-indigo-900 overflow-x-hidden relative">
       {/* Fixed continuous video background playing underneath */}
@@ -33,7 +37,7 @@ function App() {
       {/* Main content body */}
       <main className="flex-grow flex flex-col items-center w-full relative z-10">
         <Hero />
-        <ToolsGrid />
+        <ToolsGrid setActiveTool={setActiveTool} />
       </main>
 
       {/* Small copyright footer */}
