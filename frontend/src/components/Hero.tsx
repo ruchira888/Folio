@@ -32,14 +32,8 @@ export default function Hero() {
 
             {/* CTA Buttons */}
             <div className="flex items-center gap-4 flex-wrap">
-              <button className="bg-[#1D3557] text-white text-[14px] font-semibold px-7 py-3.5 rounded-full hover:bg-[#15294a] hover:shadow-xl hover:shadow-slate-800/15 active:scale-[0.98] transition-all flex items-center gap-2.5">
-                <CloudUpload className="w-[18px] h-[18px]" />
-                Upload PDF
-              </button>
-              <button className="text-[14px] font-semibold text-slate-700 hover:text-slate-900 px-5 py-3.5 rounded-full border border-slate-200/80 bg-white hover:bg-slate-50 hover:shadow-sm active:scale-[0.98] transition-all flex items-center gap-2">
-                Explore all tools
-                <ArrowRight className="w-4 h-4" />
-              </button>
+             
+            
             </div>
           </div>
 
