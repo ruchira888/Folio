@@ -36,3 +36,16 @@ export type ProtectPdfRequestBody = {
   fileId: string
   password: string
 }
+
+export type ThumbnailsRequestBody = {
+  fileId: string
+}
+
+export type ThumbnailData = {
+  pageNumber: number
+  thumbnailUrl: string
+}
+
+export type ThumbnailsResponse = {
+  pages: ThumbnailData[]
+}

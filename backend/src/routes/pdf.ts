@@ -7,6 +7,7 @@ import { AnnotateRequestBody, ApiResponse, DeletePagesRequestBody, ProtectPdfReq
 import { summarizePdf } from '../services/summaryService'
 import { deletePagesService } from '../services/deletePagesService'
 import { protectPdfService } from '../services/protectPdfService'
+import { generateThumbnails } from '../services/thumbnailService'
 import { logger } from '../logger'
 
 export const pdfRouter = express.Router()
@@ -272,6 +273,38 @@ pdfRouter.post(
         success: true,
         data: result
       } as ApiResponse<{ fileUrl: string; fileKey: string }>)
+
+    } catch (err) {
+      next(err)
+    }
+  }
+)
+
+// ─── THUMBNAILS ──────────────────────────────────────────────────────────────
+
+pdfRouter.post(
+  '/thumbnails',
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { fileId }: { fileId: string } = req.body
+
+      if (!fileId) {
+        res.status(400).json({ success: false, error: 'Missing fileId' })
+        return
+      }
+
+      const record = storage.getRecord(fileId)
+      if (!record) {
+        res.status(404).json({ success: false, error: 'File not found or expired' })
+        return
+      }
+
+      const result = await generateThumbnails(fileId)
+
+      res.json({
+        success: true,
+        data: result
+      } as ApiResponse<{ pages: { pageNumber: number; thumbnailUrl: string }[] }>)
 
     } catch (err) {
       next(err)
