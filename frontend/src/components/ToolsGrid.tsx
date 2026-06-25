@@ -1,11 +1,11 @@
 import React, { useState } from 'react';
 import { 
   Search, Sparkles, PenTool, GitMerge, Files, Languages, 
-  Minimize2, FileText, Lock, LayoutGrid, ShieldCheck, EyeOff, Monitor,
+  FileText, Lock, LayoutGrid, ShieldCheck, EyeOff, Monitor,
   Zap, Eye, Activity, Scissors
 } from 'lucide-react';
 import ToolCard from './ToolCard';
-import { isModalTool, type ToolType } from '../config/toolConfigs';
+import { isModalTool, TOOL_MODAL_CONFIG, type ToolType } from '../config/toolConfigs';
 
 interface ToolsGridProps {
   setActiveTool: (tool: ToolType) => void;
@@ -19,7 +19,7 @@ interface ToolItem {
   tagIcon?: React.ComponentType<any>;
   icon: React.ComponentType<any>;
   color: string;
-
+  avatars?: string[];
   avatarCount?: string;
   isSpecial?: boolean;
   row: number;
@@ -148,72 +148,27 @@ export default function ToolsGrid({
     tool.category.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  const getColorStyles = (color: string) => {
-    switch (color) {
-      case 'pink':
-        return {
-          bg: 'bg-[#FFF5F7] hover:bg-[#FFF0F3]',
-          border: 'border-[#FFE4E9]',
-          iconBg: 'bg-[#FFE4E9] text-[#E05297]',
-          tagBg: 'bg-[#FFF0F3] text-[#E05297]',
-        };
-      case 'blue':
-        return {
-          bg: 'bg-[#F5F8FF] hover:bg-[#EEF3FF]',
-          border: 'border-[#E0E9FF]',
-          iconBg: 'bg-[#E0E9FF] text-[#3B82F6]',
-          tagBg: 'bg-[#EEF3FF] text-[#3B82F6]',
-        };
-      case 'green':
-        return {
-          bg: 'bg-[#F4FBF7] hover:bg-[#EDF8F2]',
-          border: 'border-[#D6F0E2]',
-          iconBg: 'bg-[#D6F0E2] text-[#10B981]',
-          tagBg: 'bg-[#EDF8F2] text-[#10B981]',
-        };
-      case 'yellow':
-        return {
-          bg: 'bg-[#FFFCF2] hover:bg-[#FFF8E6]',
-          border: 'border-[#F5EDCF]',
-          iconBg: 'bg-[#F5EDCF] text-[#D97706]',
-          tagBg: 'bg-[#FFF8E6] text-[#D97706]',
-        };
-      case 'purple':
-        return {
-          bg: 'bg-[#FAF8FF] hover:bg-[#F4F0FF]',
-          border: 'border-[#EBE0FF]',
-          iconBg: 'bg-[#EBE0FF] text-[#8B5CF6]',
-          tagBg: 'bg-[#F4F0FF] text-[#8B5CF6]',
-        };
-      case 'orange':
-        return {
-          bg: 'bg-[#FFFBF7] hover:bg-[#FFF5EB]',
-          border: 'border-[#FFEAD5]',
-          iconBg: 'bg-[#FFEAD5] text-[#F97316]',
-          tagBg: 'bg-[#FFF5EB] text-[#F97316]',
-        };
-      case 'sky':
-        return {
-          bg: 'bg-[#F5FBFF] hover:bg-[#EDF7FF]',
-          border: 'border-[#E0F2FE]',
-          iconBg: 'bg-[#E0F2FE] text-[#0284C7]',
-          tagBg: 'bg-[#EDF7FF] text-[#0284C7]',
-        };
-      case 'rose':
-        return {
-          bg: 'bg-[#FFF8F8] hover:bg-[#FFF2F2]',
-          border: 'border-[#FFE4E4]',
-          iconBg: 'bg-[#FFE4E4] text-[#F43F5E]',
-          tagBg: 'bg-[#FFF2F2] text-[#F43F5E]',
-        };
-      default: // indigo / special card
-        return {
-          bg: 'bg-[#FAF9FF] hover:bg-[#F3F1FF]',
-          border: 'border-[#EDE9FE]',
-          iconBg: 'bg-[#EDE9FE] text-[#6366F1]',
-          tagBg: 'bg-[#F3F1FF] text-[#6366F1]',
-        };
+  const getColorStyles = (id: string) => {
+    if (isModalTool(id)) {
+      const config = TOOL_MODAL_CONFIG[id as ToolType];
+      return {
+        bg: config.cardBg,
+        border: config.cardBorder,
+        iconBg: config.iconBg,
+        iconColor: config.iconColor,
+        tagBg: config.tagBg,
+        tagColor: config.tagColor,
+      };
     }
+    // Default/More tools fallback (Lavender)
+    return {
+      bg: 'bg-[#F3F0FF]',
+      border: 'border-[#EBE0FF]',
+      iconBg: 'bg-white',
+      iconColor: 'text-[#6366F1]',
+      tagBg: 'bg-[#F3F1FF]',
+      tagColor: 'text-[#6366F1]',
+    };
   };
 
   // Group filtered tools by row for the specific layout
@@ -261,7 +216,7 @@ export default function ToolsGrid({
             {row1.length > 0 && (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-5">
                 {row1.map((tool) => {
-                  const styles = getColorStyles(tool.color);
+                  const styles = getColorStyles(tool.id);
                   const Icon = tool.icon;
                   return (
                     <ToolCard
@@ -277,7 +232,7 @@ export default function ToolsGrid({
                       avatarCount={tool.avatarCount}
                       onClick={
                         isModalTool(tool.id)
-                          ? () => setActiveTool(tool.id)
+                          ? () => setActiveTool(tool.id as ToolType)
                           : undefined
                       }
                     />
@@ -290,7 +245,7 @@ export default function ToolsGrid({
             {row2.length > 0 && (
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 md:gap-5">
                 {row2.map((tool) => {
-                  const styles = getColorStyles(tool.color);
+                  const styles = getColorStyles(tool.id);
                   const Icon = tool.icon;
                   return (
                     <ToolCard
@@ -306,7 +261,7 @@ export default function ToolsGrid({
                       avatarCount={tool.avatarCount}
                       onClick={
                         isModalTool(tool.id)
-                          ? () => setActiveTool(tool.id)
+                          ? () => setActiveTool(tool.id as ToolType)
                           : undefined
                       }
                     />
@@ -319,7 +274,7 @@ export default function ToolsGrid({
             {row3.length > 0 && (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-5">
                 {row3.map((tool) => {
-                  const styles = getColorStyles(tool.color);
+                  const styles = getColorStyles(tool.id);
                   const Icon = tool.icon;
                   return (
                     <ToolCard
@@ -335,7 +290,7 @@ export default function ToolsGrid({
                       avatarCount={tool.avatarCount}
                       onClick={
                         isModalTool(tool.id)
-                          ? () => setActiveTool(tool.id)
+                          ? () => setActiveTool(tool.id as ToolType)
                           : undefined
                       }
                     />
@@ -346,7 +301,7 @@ export default function ToolsGrid({
 
             {/* Row 4: Full-width "And more tools" card */}
             {row4.map((tool) => {
-              const styles = getColorStyles(tool.color);
+              const styles = getColorStyles(tool.id);
               const Icon = tool.icon;
               return (
                 <div

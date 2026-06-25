@@ -4,7 +4,9 @@ interface ToolCardStyles {
   bg: string;
   border: string;
   iconBg: string;
+  iconColor: string;
   tagBg: string;
+  tagColor: string;
 }
 
 interface ToolCardProps {
@@ -48,7 +50,7 @@ export default function ToolCard({
       <div>
         {/* Icon + Category label */}
         <div className="flex items-center gap-3 mb-4">
-          <div className={`rounded-xl p-2.5 ${styles.iconBg} transition-transform group-hover:scale-105`}>
+          <div className={`rounded-xl p-2.5 ${styles.iconBg} ${styles.iconColor} shadow-sm transition-transform group-hover:scale-105`}>
             <Icon className="h-5 w-5" />
           </div>
           <span className="font-sans text-[10px] font-bold tracking-[0.12em] uppercase text-slate-400">
@@ -70,7 +72,7 @@ export default function ToolCard({
       {/* Footer: tag + avatars */}
       <div className="mt-5 flex flex-wrap items-center justify-between gap-2 pt-3 border-t border-slate-100/60">
         {tag && (
-          <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10.5px] font-semibold ${styles.tagBg}`}>
+          <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10.5px] font-semibold ${styles.tagBg} ${styles.tagColor}`}>
             {TagIcon ? (
               <TagIcon className="h-3.5 w-3.5 flex-shrink-0" />
             ) : (

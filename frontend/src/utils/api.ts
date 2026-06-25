@@ -162,6 +162,40 @@ export async function deletePages(
   return data.data
 }
 
+export interface Thumbnail {
+  pageNumber: number
+  thumbnailUrl: string
+}
+
+export interface ThumbnailsResponse {
+  pages: Thumbnail[]
+}
+
+/**
+ * Fetch PDF page thumbnails from the backend
+ */
+export async function getPdfThumbnails(fileId: string): Promise<ThumbnailsResponse> {
+  const response = await fetch(`${API_BASE_URL}/api/pdf/thumbnails`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ fileId }),
+  })
+
+  if (!response.ok) {
+    const error = await response.json()
+    throw new Error(error.error || 'Failed to fetch thumbnails')
+  }
+
+  const data: ApiResponse<ThumbnailsResponse> = await response.json()
+  if (!data.success || !data.data) {
+    throw new Error('Invalid response from server')
+  }
+
+  return data.data
+}
+
 /**
  * Password-protect a PDF
  */
