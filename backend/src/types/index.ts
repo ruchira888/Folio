@@ -26,3 +26,13 @@ export type SummarizeRequestBody={
   fileId: string
 
 }
+
+export type DeletePagesRequestBody = {
+  fileId: string
+  pagesToDelete: number[]
+}
+
+export type ProtectPdfRequestBody = {
+  fileId: string
+  password: string
+}

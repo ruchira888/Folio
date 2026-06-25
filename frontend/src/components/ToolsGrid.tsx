@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { 
   Search, Sparkles, PenTool, GitMerge, Files, Languages, 
   Minimize2, FileText, Lock, LayoutGrid, ShieldCheck, EyeOff, Monitor,
-  Zap, Eye, Activity
+  Zap, Eye, Activity, Scissors
 } from 'lucide-react';
 import ToolCard from './ToolCard';
 import { isModalTool, type ToolType } from '../config/toolConfigs';
@@ -96,13 +96,13 @@ export default function ToolsGrid({
     },
     // Row 3: 3 columns
     {
-      id: 'compress',
-      category: 'COMPRESS',
-      title: 'Compress PDF',
-      description: 'Reduce PDF file size without losing quality.',
-      tag: 'High Quality',
-      tagIcon: ShieldCheck,
-      icon: Minimize2,
+      id: 'delete-pages',
+      category: 'EDIT',
+      title: 'Delete Pages',
+      description: 'Remove specific pages from your PDF instantly.',
+      tag: 'Precision Edit',
+      tagIcon: Scissors,
+      icon: Scissors,
       color: 'orange',
       row: 3
     },

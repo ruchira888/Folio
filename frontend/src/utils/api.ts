@@ -128,3 +128,64 @@ export async function annotatePdf(
 
   return data.data
 }
+
+export interface PdfFileResult {
+  fileUrl: string
+  fileKey: string
+}
+
+/**
+ * Delete specific pages from a PDF
+ */
+export async function deletePages(
+  fileId: string,
+  pagesToDelete: number[]
+): Promise<PdfFileResult> {
+  const response = await fetch(`${API_BASE_URL}/api/pdf/delete-pages`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ fileId, pagesToDelete }),
+  })
+
+  if (!response.ok) {
+    const error = await response.json()
+    throw new Error(error.error || 'Failed to delete pages')
+  }
+
+  const data: ApiResponse<PdfFileResult> = await response.json()
+  if (!data.success || !data.data) {
+    throw new Error('Invalid response from server')
+  }
+
+  return data.data
+}
+
+/**
+ * Password-protect a PDF
+ */
+export async function protectPdf(
+  fileId: string,
+  password: string
+): Promise<PdfFileResult> {
+  const response = await fetch(`${API_BASE_URL}/api/pdf/protect`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ fileId, password }),
+  })
+
+  if (!response.ok) {
+    const error = await response.json()
+    throw new Error(error.error || 'Failed to protect PDF')
+  }
+
+  const data: ApiResponse<PdfFileResult> = await response.json()
+  if (!data.success || !data.data) {
+    throw new Error('Invalid response from server')
+  }
+
+  return data.data
+}

@@ -3,8 +3,10 @@ import rateLimit,{ipKeyGenerator} from 'express-rate-limit'
 import { PDFDocument, rgb } from 'pdf-lib'
 import pdfParse from 'pdf-parse'
 import { storage } from '../index'
-import { AnnotateRequestBody, ApiResponse } from '../types'
+import { AnnotateRequestBody, ApiResponse, DeletePagesRequestBody, ProtectPdfRequestBody } from '../types'
 import { summarizePdf } from '../services/summaryService'
+import { deletePagesService } from '../services/deletePagesService'
+import { protectPdfService } from '../services/protectPdfService'
 import { logger } from '../logger'
 
 export const pdfRouter = express.Router()
@@ -235,3 +237,85 @@ pdfRouter.post(
     }
   }
 )
+
+// ─── DELETE PAGES ────────────────────────────────────────────────────────────
+
+pdfRouter.post(
+  '/delete-pages',
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { fileId, pagesToDelete }: DeletePagesRequestBody = req.body
+
+      // validate required fields
+      if (!fileId) {
+        res.status(400).json({ success: false, error: 'Missing fileId' })
+        return
+      }
+      if (!Array.isArray(pagesToDelete) || pagesToDelete.length === 0) {
+        res.status(400).json({ success: false, error: 'pagesToDelete must be a non-empty array' })
+        return
+      }
+
+      // make sure file exists
+      const record = storage.getRecord(fileId)
+      if (!record) {
+        res.status(404).json({ success: false, error: 'File not found or expired' })
+        return
+      }
+
+      // run service
+      const result = await deletePagesService(fileId, pagesToDelete)
+
+      logger.info(`Delete-pages complete for: ${fileId}`)
+
+      res.json({
+        success: true,
+        data: result
+      } as ApiResponse<{ fileUrl: string; fileKey: string }>)
+
+    } catch (err) {
+      next(err)
+    }
+  }
+)
+
+// ─── PROTECT PDF ─────────────────────────────────────────────────────────────
+
+pdfRouter.post(
+  '/protect',
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { fileId, password }: ProtectPdfRequestBody = req.body
+
+      // validate required fields
+      if (!fileId) {
+        res.status(400).json({ success: false, error: 'Missing fileId' })
+        return
+      }
+      if (!password || password.trim().length === 0) {
+        res.status(400).json({ success: false, error: 'Password must not be empty' })
+        return
+      }
+
+      // make sure file exists
+      const record = storage.getRecord(fileId)
+      if (!record) {
+        res.status(404).json({ success: false, error: 'File not found or expired' })
+        return
+      }
+
+      // run service
+      const result = await protectPdfService(fileId, password)
+
+      logger.info(`Protect-pdf complete for: ${fileId}`)
+
+      res.json({
+        success: true,
+        data: result
+      } as ApiResponse<{ fileUrl: string; fileKey: string }>)
+
+    } catch (err) {
+      next(err)
+    }
+  }
+)

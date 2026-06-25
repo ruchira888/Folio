@@ -3,6 +3,8 @@ import Hero from './components/Hero';
 import ToolsGrid from './components/ToolsGrid';
 import SummarizeModal from './components/SummarizeModal';
 import GenericToolModal from './components/GenericToolModal';
+import DeletePagesModal from './components/DeletePagesModal';
+import ProtectPdfModal from './components/ProtectPdfModal';
 import { useState } from 'react';
 import { isModalTool, type ToolType } from './config/toolConfigs';
 
@@ -54,7 +56,19 @@ function App() {
         onClose={closeModal}
       />
 
-      {activeTool && activeTool !== 'summarize' && isModalTool(activeTool) && (
+      {/* Delete Pages Modal */}
+      <DeletePagesModal
+        isOpen={activeTool === 'delete-pages'}
+        onClose={closeModal}
+      />
+
+      {/* Protect PDF Modal */}
+      <ProtectPdfModal
+        isOpen={activeTool === 'protect'}
+        onClose={closeModal}
+      />
+
+      {activeTool && activeTool !== 'summarize' && activeTool !== 'delete-pages' && activeTool !== 'protect' && isModalTool(activeTool) && (
         <GenericToolModal
           isOpen
           toolType={activeTool}

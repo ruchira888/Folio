@@ -6,6 +6,7 @@ import {
   Languages,
   Lock,
   FileText,
+  Scissors,
   type LucideIcon,
 } from 'lucide-react';
 
@@ -16,7 +17,8 @@ export type ToolType =
   | 'compare'
   | 'translate'
   | 'protect'
-  | 'convert';
+  | 'convert'
+  | 'delete-pages';
 
 export interface ToolModalConfig {
   title: string;
@@ -146,6 +148,24 @@ export const TOOL_MODAL_CONFIG: Record<ToolType, ToolModalConfig> = {
     dropzoneBg: 'bg-[#FFF8F8]',
     formatsLabel: 'PDF',
   },
+  'delete-pages': {
+    title: 'Delete Pages',
+    description: 'Remove specific pages from your PDF instantly.',
+    icon: Scissors,
+    iconBg: 'bg-[#FFEAD5]',
+    iconColor: 'text-[#F97316]',
+    buttonText: 'Select PDF File',
+    dropHint: 'or drag & drop PDF here',
+    accept: 'application/pdf,.pdf',
+    multiple: false,
+    maxFiles: 1,
+    maxSizeMb: 20,
+    accentButton: 'bg-[#F97316]',
+    accentButtonHover: 'hover:bg-[#EA6C00]',
+    dropzoneBorder: 'border-[#FFCFA0]',
+    dropzoneBg: 'bg-[#FFFBF7]',
+    formatsLabel: 'PDF',
+  },
   convert: {
     title: 'Convert to PDF',
     description: 'Convert Word, Excel, images and more to PDF.',
@@ -174,6 +194,7 @@ export const MODAL_TOOL_IDS: ToolType[] = [
   'translate',
   'protect',
   'convert',
+  'delete-pages',
 ];
 
 export function isModalTool(id: string): id is ToolType {
