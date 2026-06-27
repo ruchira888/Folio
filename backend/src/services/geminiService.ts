@@ -41,7 +41,7 @@ export const callGemini=async(prompt:string):Promise<string>=>{
     throw new Error(`Groq API failed: ${errorDetails}`)
   }
 
-  const data = await res.json()
+  const data = await res.json() as any
   const text = data.choices?.[0]?.message?.content
 
   if (!text) {

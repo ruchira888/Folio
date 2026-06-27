@@ -10,7 +10,7 @@ export const ourFileRouter = {
       maxFileCount: 1
     }
   })
-  .middleware(async ({ req }) => {
+  .middleware(async () => {
     // no auth for now 
     logger.info('Upload middleware triggered')
     return {}  

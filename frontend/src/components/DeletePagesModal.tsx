@@ -1,6 +1,7 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useUploadThing } from '../utils/uploadthing';
-import { uploadComplete, deletePages, getPdfThumbnails, type Thumbnail } from '../utils/api';
+import { uploadComplete, deletePages } from '../utils/api';
+import { generatePdfThumbnails, type PdfThumbnail } from '../utils/pdfThumbnails';
 import { validateToolFiles } from '../utils/validateToolFiles';
 import ToolModal from './ToolModal';
 import ModalOverlay from './ModalOverlay';
@@ -24,31 +25,46 @@ export default function DeletePagesModal({ isOpen, onClose }: DeletePagesModalPr
   const [error, setError] = useState<string | null>(null);
 
   const [fileId, setFileId] = useState<string | null>(null);
-  const [thumbnails, setThumbnails] = useState<Thumbnail[]>([]);
+  const [uploadedFile, setUploadedFile] = useState<File | null>(null);
+  const [thumbnails, setThumbnails] = useState<PdfThumbnail[]>([]);
+  const [totalPages, setTotalPages] = useState(0);
+  const [renderedCount, setRenderedCount] = useState(0);
   const [selectedPages, setSelectedPages] = useState<number[]>([]);
   const [pageInput, setPageInput] = useState('');
 
   const [result, setResult] = useState<DeleteResult | null>(null);
+  const renderGenerationRef = useRef(0);
 
-  // Fetch thumbnails when file is uploaded
+  // Render thumbnails locally when a file is uploaded
   useEffect(() => {
-    if (fileId) {
-      void fetchThumbnails(fileId);
-    }
-  }, [fileId]);
+    if (!uploadedFile) return;
 
-  const fetchThumbnails = async (id: string) => {
+    const generation = ++renderGenerationRef.current;
+    setThumbnails([]);
+    setTotalPages(0);
+    setRenderedCount(0);
     setIsLoadingThumbnails(true);
     setError(null);
-    try {
-      const res = await getPdfThumbnails(id);
-      setThumbnails(res.pages);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load thumbnails');
-    } finally {
-      setIsLoadingThumbnails(false);
-    }
-  };
+
+    void generatePdfThumbnails(uploadedFile, (thumb, pageCount) => {
+      if (generation !== renderGenerationRef.current) return;
+      setTotalPages(pageCount);
+      setThumbnails(prev => {
+        const next = [...prev, thumb];
+        next.sort((a, b) => a.pageNumber - b.pageNumber);
+        return next;
+      });
+      setRenderedCount(prev => prev + 1);
+    })
+      .catch(err => {
+        if (generation !== renderGenerationRef.current) return;
+        setError(err instanceof Error ? err.message : 'Failed to load thumbnails');
+      })
+      .finally(() => {
+        if (generation !== renderGenerationRef.current) return;
+        setIsLoadingThumbnails(false);
+      });
+  }, [uploadedFile]);
 
   // Sync selectedPages -> pageInput
   useEffect(() => {
@@ -75,7 +91,7 @@ export default function DeletePagesModal({ isOpen, onClose }: DeletePagesModalPr
       }
     }
     return [...new Set(pages)]
-      .filter(n => n > 0 && n <= thumbnails.length)
+      .filter(n => n > 0 && n <= (totalPages || thumbnails.length))
       .sort((a, b) => a - b);
   };
 
@@ -119,6 +135,7 @@ export default function DeletePagesModal({ isOpen, onClose }: DeletePagesModalPr
       }
       const uploaded = uploadedFiles[0];
       await uploadComplete(uploaded.key, uploaded.ufsUrl, file.name, file.size / (1024 * 1024));
+      setUploadedFile(file);
       setFileId(uploaded.key);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred');
@@ -142,8 +159,12 @@ export default function DeletePagesModal({ isOpen, onClose }: DeletePagesModalPr
 
   const handleClose = () => {
     if (isUploading || isProcessing) return;
+    renderGenerationRef.current += 1;
     setFileId(null);
+    setUploadedFile(null);
     setThumbnails([]);
+    setTotalPages(0);
+    setRenderedCount(0);
     setSelectedPages([]);
     setPageInput('');
     setResult(null);
@@ -222,13 +243,20 @@ export default function DeletePagesModal({ isOpen, onClose }: DeletePagesModalPr
           <div className="flex flex-1 overflow-hidden">
             {/* Left Side: Thumbnail Grid */}
             <div className="flex-1 overflow-y-auto bg-slate-50/50 p-6">
-              {isLoadingThumbnails ? (
+              {isLoadingThumbnails && thumbnails.length === 0 ? (
                 <div className="flex h-full flex-col items-center justify-center space-y-4">
                   <Loader2 className="h-10 w-10 animate-spin text-[#F97316]" />
-                  <p className="text-sm font-medium text-slate-500">Generating thumbnails...</p>
+                  <p className="text-sm font-medium text-slate-500">Loading PDF pages...</p>
                 </div>
               ) : (
-                <div className="grid grid-cols-2 gap-8 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
+                <>
+                  {isLoadingThumbnails && totalPages > 0 && (
+                    <div className="mb-4 flex items-center gap-2 rounded-xl border border-slate-200/80 bg-white px-4 py-2.5 text-sm font-medium text-slate-600">
+                      <Loader2 className="h-4 w-4 animate-spin text-[#F97316]" />
+                      Rendering pages {renderedCount} of {totalPages}
+                    </div>
+                  )}
+                  <div className="grid grid-cols-2 gap-8 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
                   <AnimatePresence mode="popLayout">
                     {thumbnails.map((thumb) => {
                       const isSelected = selectedPages.includes(thumb.pageNumber);
@@ -280,7 +308,8 @@ export default function DeletePagesModal({ isOpen, onClose }: DeletePagesModalPr
                       );
                     })}
                   </AnimatePresence>
-                </div>
+                  </div>
+                </>
               )}
             </div>
 
@@ -306,7 +335,7 @@ export default function DeletePagesModal({ isOpen, onClose }: DeletePagesModalPr
                 <div className="grid gap-3">
                   <div className="flex items-center justify-between rounded-xl bg-slate-50 px-4 py-3.5 border border-slate-100">
                     <span className="text-sm font-semibold text-slate-500">Total pages</span>
-                    <span className="text-sm font-bold text-slate-900">{thumbnails.length}</span>
+                    <span className="text-sm font-bold text-slate-900">{totalPages || thumbnails.length}</span>
                   </div>
                   <div className={`flex items-center justify-between rounded-xl px-4 py-3.5 border transition-colors duration-200 ${
                     selectedPages.length > 0 ? 'bg-orange-50 border-orange-100' : 'bg-slate-50 border-slate-100'

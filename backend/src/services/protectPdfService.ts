@@ -29,7 +29,7 @@ export async function protectPdfService(
   const pdfDoc = await PDFDocument.load(buffer)
 
   // Encrypt with user-supplied password
-  await pdfDoc.encrypt({
+  (pdfDoc as any).encrypt({
     userPassword: password,
     ownerPassword: password
   })
