@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { 
-  Search, Sparkles, PenTool, GitMerge, Files, Languages, 
+  Search, Sparkles, PenTool, GitMerge, Moon, Languages, 
   FileText, Lock, LayoutGrid, ShieldCheck, EyeOff, Monitor,
   Zap, Eye, Activity, Scissors
 } from 'lucide-react';
@@ -71,13 +71,13 @@ export default function ToolsGrid({
     },
     // Row 2: 2 columns (wider)
     {
-      id: 'compare',
-      category: 'COMPARE',
-      title: 'Compare PDFs',
-      description: 'Spot differences between two PDF files instantly.',
-      tag: 'Visual + Text Diff',
+      id: 'dark-mode',
+      category: 'DARK MODE',
+      title: 'Dark Mode',
+      description: 'Convert PDF pages to dark mode without inverting images.',
+      tag: 'Adobe-style',
       tagIcon: Eye,
-      icon: Files,
+      icon: Moon,
       color: 'yellow',
      
      

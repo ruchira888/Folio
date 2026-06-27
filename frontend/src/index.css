@@ -1,4 +1,19 @@
 @import "tailwindcss";
+@import "pdfjs-dist/web/pdf_viewer.css";
+
+.dark-pdf-page {
+  background: #121212;
+}
+
+.dark-pdf-text-layer {
+  color: #eaeaea;
+  z-index: 2;
+}
+
+.dark-pdf-text-layer :is(span, br) {
+  color: #eaeaea !important;
+  -webkit-text-fill-color: #eaeaea;
+}
 
 @theme {
   --font-serif: "Playfair Display", Georgia, serif;

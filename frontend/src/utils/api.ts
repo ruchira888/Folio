@@ -222,4 +222,4 @@ export async function protectPdf(
   }
 
   return data.data
-}
+}

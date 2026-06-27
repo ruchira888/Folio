@@ -5,6 +5,7 @@ import SummarizeModal from './components/SummarizeModal';
 import GenericToolModal from './components/GenericToolModal';
 import DeletePagesModal from './components/DeletePagesModal';
 import ProtectPdfModal from './components/ProtectPdfModal';
+import DarkModePdfModal from './components/DarkModePdfModal';
 import { useState } from 'react';
 import { isModalTool, type ToolType } from './config/toolConfigs';
 
@@ -68,7 +69,12 @@ function App() {
         onClose={closeModal}
       />
 
-      {activeTool && activeTool !== 'summarize' && activeTool !== 'delete-pages' && activeTool !== 'protect' && isModalTool(activeTool) && (
+      <DarkModePdfModal
+        isOpen={activeTool === 'dark-mode'}
+        onClose={closeModal}
+      />
+
+      {activeTool && activeTool !== 'summarize' && activeTool !== 'delete-pages' && activeTool !== 'protect' && activeTool !== 'dark-mode' && isModalTool(activeTool) && (
         <GenericToolModal
           isOpen
           toolType={activeTool}

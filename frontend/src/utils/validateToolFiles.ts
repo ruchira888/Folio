@@ -11,14 +11,7 @@ export function validateToolFiles(
   }
 
   if (files.length > config.maxFiles) {
-    if (toolType === 'compare') {
-      return 'Please select exactly 2 PDF files.';
-    }
     return `Please select up to ${config.maxFiles} file${config.maxFiles > 1 ? 's' : ''}.`;
-  }
-
-  if (toolType === 'compare' && files.length !== 2) {
-    return 'Please select exactly 2 PDF files.';
   }
 
   if (toolType === 'merge' && files.length < 2) {

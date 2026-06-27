@@ -2,7 +2,7 @@ import {
   Sparkles,
   PenTool,
   GitMerge,
-  Files,
+  Moon,
   Languages,
   Lock,
   FileText,
@@ -15,7 +15,7 @@ export type ToolType =
   | 'summarize'
   | 'annotate'
   | 'merge'
-  | 'compare'
+  | 'dark-mode'
   | 'translate'
   | 'protect'
   | 'convert'
@@ -112,17 +112,17 @@ export const TOOL_MODAL_CONFIG: Record<ToolType, ToolModalConfig> = {
     tagBg: 'bg-[#BAEECE]',
     tagColor: 'text-[#22C55E]',
   },
-  compare: {
-    title: 'Compare PDFs',
-    description: 'Spot differences between two PDF files instantly.',
-    icon: Files,
+  'dark-mode': {
+    title: 'Dark Mode',
+    description: 'Convert PDF pages to a comfortable Adobe-style dark theme.',
+    icon: Moon,
     iconBg: 'bg-white',
     iconColor: 'text-[#F59E0B]',
-    buttonText: 'Select 2 PDF Files',
-    dropHint: 'or drag & drop 2 PDFs here',
+    buttonText: 'Select PDF File',
+    dropHint: 'or drag & drop PDF here',
     accept: 'application/pdf,.pdf',
-    multiple: true,
-    maxFiles: 2,
+    multiple: false,
+    maxFiles: 1,
     maxSizeMb: 20,
     accentButton: 'bg-[#F59E0B]',
     accentButtonHover: 'hover:bg-[#D97E06]',
@@ -250,7 +250,7 @@ export const MODAL_TOOL_IDS: ToolType[] = [
   'summarize',
   'annotate',
   'merge',
-  'compare',
+  'dark-mode',
   'translate',
   'protect',
   'convert',
