@@ -1,4 +1,4 @@
-import { PDFDocument } from 'pdf-lib'
+import { PDFDocument as PdfLibDocument } from 'pdf-lib'
 import { UTApi } from 'uploadthing/server'
 import { storage } from '../index'
 import { logger } from '../logger'
@@ -26,16 +26,16 @@ export async function protectPdfService(
   const buffer = await storage.getBuffer(fileId)
 
   // Load into pdf-lib
-  const pdfDoc = await PDFDocument.load(buffer)
+  const documentToProtect: any = await (PdfLibDocument as any).load(buffer)
 
   // Encrypt with user-supplied password
-  (pdfDoc as any).encrypt({
+  documentToProtect.encrypt({
     userPassword: password,
     ownerPassword: password
   })
 
   // Serialise protected PDF
-  const bytes = await pdfDoc.save()
+  const bytes = await documentToProtect.save()
 
   // Upload to UploadThing
   const file = new File(
@@ -66,3 +66,4 @@ export async function protectPdfService(
     fileKey: uploaded.data.key
   }
 }
+

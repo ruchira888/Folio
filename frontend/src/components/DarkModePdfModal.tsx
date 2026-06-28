@@ -1,139 +1,109 @@
-import { useEffect, useRef, useState } from 'react';
-import { getDocument, GlobalWorkerOptions, OPS, TextLayer, version } from 'pdfjs-dist';
-import type { PDFDocumentProxy } from 'pdfjs-dist';
-import ToolModal from './ToolModal';
-
-GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${version}/build/pdf.worker.min.mjs`;
+import { useState } from 'react'
+import { X } from 'lucide-react'
+import { validateToolFiles } from '../utils/validateToolFiles'
+import ToolModal from './ToolModal'
+import ModalOverlay from './ModalOverlay'
+import PdfDarkModeViewer from './PdfDarkModeViewer'
 
 interface DarkModePdfModalProps {
-  isOpen: boolean;
-  onClose: () => void;
+  isOpen: boolean
+  onClose: () => void
 }
 
-const textOperations = new Set<number>([
-  OPS.beginText,
-  OPS.endText,
-  OPS.setCharSpacing,
-  OPS.setWordSpacing,
-  OPS.setHScale,
-  OPS.setLeading,
-  OPS.setFont,
-  OPS.setTextRenderingMode,
-  OPS.setTextRise,
-  OPS.moveText,
-  OPS.setLeadingMoveText,
-  OPS.setTextMatrix,
-  OPS.nextLine,
-  OPS.showText,
-  OPS.showSpacedText,
-  OPS.nextLineShowText,
-  OPS.nextLineSetSpacingShowText,
-]);
-
-function DarkModePage({ pdf, pageNumber }: { pdf: PDFDocumentProxy; pageNumber: number }) {
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  const textLayerRef = useRef<HTMLDivElement>(null);
-  const [size, setSize] = useState({ width: 0, height: 0 });
-
-  useEffect(() => {
-    let cancelled = false;
-    let textLayer: TextLayer | undefined;
-
-    void (async () => {
-      const page = await pdf.getPage(pageNumber);
-      const viewport = page.getViewport({ scale: 1.35 });
-      const operatorList = await page.getOperatorList();
-      if (cancelled || !canvasRef.current || !textLayerRef.current) return;
-
-      setSize({ width: viewport.width, height: viewport.height });
-      const canvas = canvasRef.current;
-      canvas.width = Math.ceil(viewport.width);
-      canvas.height = Math.ceil(viewport.height);
-      const context = canvas.getContext('2d', { alpha: true });
-      if (!context) throw new Error('Could not create PDF canvas');
-      context.clearRect(0, 0, canvas.width, canvas.height);
-
-      await page.render({
-        canvas,
-        canvasContext: context,
-        viewport,
-        background: 'rgba(0,0,0,0)',
-        operationsFilter: (index) => !textOperations.has(operatorList.fnArray[index]),
-      }).promise;
-
-      if (cancelled) return;
-      const container = textLayerRef.current;
-      container.replaceChildren();
-      container.style.setProperty('--total-scale-factor', String(viewport.scale));
-      textLayer = new TextLayer({
-        textContentSource: page.streamTextContent(),
-        container,
-        viewport,
-      });
-      await textLayer.render();
-    })().catch((error) => console.error('Dark-mode page render failed:', error));
-
-    return () => {
-      cancelled = true;
-      textLayer?.cancel();
-    };
-  }, [pdf, pageNumber]);
-
-  return (
-    <div
-      className="dark-pdf-page relative mx-auto overflow-hidden shadow-xl"
-      style={{ width: size.width, height: size.height }}
-    >
-      <canvas ref={canvasRef} className="absolute inset-0 h-full w-full" />
-      <div ref={textLayerRef} className="dark-pdf-text-layer textLayer" />
-    </div>
-  );
-}
+type ModalState = 'upload' | 'viewer'
 
 export default function DarkModePdfModal({ isOpen, onClose }: DarkModePdfModalProps) {
-  const [pdf, setPdf] = useState<PDFDocumentProxy | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [isProcessing, setIsProcessing] = useState(false);
+  const [state, setState] = useState<ModalState>('upload')
+  const [error, setError] = useState<string | null>(null)
+  const [selectedFile, setSelectedFile] = useState<File | null>(null)
 
-  const close = () => {
-    void pdf?.destroy();
-    setPdf(null);
-    setError(null);
-    onClose();
-  };
+  const handleClose = () => {
+    setState('upload')
+    setError(null)
+    setSelectedFile(null)
+    onClose()
+  }
 
-  const openPdf = async (files: File[]) => {
-    const file = files[0];
-    if (!file) return;
-    setError(null);
-    setIsProcessing(true);
-    try {
-      void pdf?.destroy();
-      const document = await getDocument({ data: new Uint8Array(await file.arrayBuffer()) }).promise;
-      setPdf(document);
-    } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'Could not open PDF');
-    } finally {
-      setIsProcessing(false);
+  const handleFilesSelected = async (files: File[]) => {
+    const validationError = validateToolFiles('dark-mode', files)
+    if (validationError) {
+      setError(validationError)
+      return
     }
-  };
+
+    const file = files[0]
+    if (!file) return
+
+    setError(null)
+    setSelectedFile(file)
+    setState('viewer')
+  }
+
+  // Full-screen viewer modal — replaces the light-themed ToolModal layout
+  if (state === 'viewer' && selectedFile) {
+    return (
+      <ModalOverlay isOpen onClose={handleClose}>
+        <div className="relative flex h-[90vh] w-[90vw] max-w-[900px] flex-col overflow-hidden rounded-3xl bg-[#1a1a1a] shadow-[0_24px_80px_-12px_rgba(0,0,0,0.6)]">
+          {/* Dark header */}
+          <div className="flex items-center justify-between border-b border-slate-700 px-6 py-4">
+            <div className="flex items-center gap-2">
+              <span className="flex h-7 w-7 items-center justify-center rounded-full bg-[#F59E0B]">
+                <svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  className="h-4 w-4 text-white"
+                  stroke="currentColor"
+                  strokeWidth={2}
+                >
+                  <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
+                </svg>
+              </span>
+              <span className="font-serif text-base font-semibold text-white">
+                Dark Mode Preview
+              </span>
+              <span className="ml-2 truncate max-w-[200px] text-xs text-slate-400">
+                {selectedFile.name}
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={handleClose}
+              className="flex h-8 w-8 items-center justify-center rounded-full border border-slate-600 text-slate-400 transition-all hover:scale-105 hover:border-slate-400 hover:text-white"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+
+          {/* Viewer body */}
+          <div className="flex-1 overflow-hidden px-4 pb-4 pt-3">
+            <PdfDarkModeViewer
+              file={selectedFile}
+              onBack={() => setState('upload')}
+            />
+          </div>
+
+          {/* Footer */}
+          <div className="border-t border-slate-700 px-6 py-3 text-center">
+            <p className="text-xs font-medium text-slate-500">
+              100% client-side processing · Your file never leaves your device
+            </p>
+          </div>
+        </div>
+      </ModalOverlay>
+    )
+  }
 
   return (
     <ToolModal
       isOpen={isOpen}
-      onClose={close}
+      onClose={handleClose}
       toolType="dark-mode"
-      isProcessing={isProcessing}
+      isUploading={false}
+      isProcessing={false}
       error={error}
-      onFilesSelected={(files) => void openPdf(files)}
-    >
-      {pdf && (
-        <div className="mt-5 max-h-[70vh] space-y-5 overflow-auto rounded-2xl bg-[#121212] p-4">
-          {Array.from({ length: pdf.numPages }, (_, index) => (
-            <DarkModePage key={index + 1} pdf={pdf} pageNumber={index + 1} />
-          ))}
-        </div>
-      )}
-    </ToolModal>
-  );
+      onFilesSelected={(files) => {
+        void handleFilesSelected(files)
+      }}
+    />
+  )
 }

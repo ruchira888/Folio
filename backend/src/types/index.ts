@@ -37,6 +37,15 @@ export type ProtectPdfRequestBody = {
   password: string
 }
 
+export type DarkModeRequestBody = {
+  fileId: string
+}
+
+export type DarkModeResult = {
+  fileUrl: string
+  fileKey: string
+}
+
 export type ThumbnailsRequestBody = {
   fileId: string
 }

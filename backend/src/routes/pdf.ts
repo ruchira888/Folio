@@ -1,12 +1,13 @@
 import express, { Request, Response, NextFunction } from 'express'
 import rateLimit,{ipKeyGenerator} from 'express-rate-limit'
-import { PDFDocument, rgb } from 'pdf-lib'
+import { PDFDocument as PdfLibDocument, rgb } from 'pdf-lib'
 import pdfParse from 'pdf-parse'
 import { storage } from '../index'
-import { AnnotateRequestBody, ApiResponse, DeletePagesRequestBody, ProtectPdfRequestBody } from '../types'
+import { AnnotateRequestBody, ApiResponse, DarkModeRequestBody, DeletePagesRequestBody, ProtectPdfRequestBody } from '../types'
 import { summarizePdf } from '../services/summaryService'
 import { deletePagesService } from '../services/deletePagesService'
 import { protectPdfService } from '../services/protectPdfService'
+import { darkModeService } from '../services/darkModeService'
 import { generateThumbnails } from '../services/thumbnailService'
 import { logger } from '../logger'
 
@@ -79,7 +80,7 @@ pdfRouter.post(
       const buffer = await storage.getBuffer(req.params.id)
 
       // convert bytes -> editable PDF document
-      const pdfDoc = await PDFDocument.load(buffer)
+      const pdfDoc = await (PdfLibDocument as any).load(buffer)
 
       // get all pages from pdf
       const pages = pdfDoc.getPages()
@@ -352,3 +353,37 @@ pdfRouter.post(
     }
   }
 )
+
+// â”€â”€â”€ DARK MODE â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+
+pdfRouter.post(
+  '/dark-mode',
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { fileId }: DarkModeRequestBody = req.body
+
+      if (!fileId) {
+        res.status(400).json({ success: false, error: 'Missing fileId' })
+        return
+      }
+
+      const record = storage.getRecord(fileId)
+      if (!record) {
+        res.status(404).json({ success: false, error: 'File not found or expired' })
+        return
+      }
+
+      const result = await darkModeService(fileId)
+
+      logger.info(`Dark-mode complete for: ${fileId}`)
+
+      res.json({
+        success: true,
+        data: result
+      } as ApiResponse<{ fileUrl: string; fileKey: string }>)
+    } catch (err) {
+      next(err)
+    }
+  }
+)
+

@@ -114,7 +114,7 @@ export const TOOL_MODAL_CONFIG: Record<ToolType, ToolModalConfig> = {
   },
   'dark-mode': {
     title: 'Dark Mode',
-    description: 'Convert PDF pages to a comfortable Adobe-style dark theme.',
+    description: 'Download a dark-theme PDF without inverting images.',
     icon: Moon,
     iconBg: 'bg-white',
     iconColor: 'text-[#F59E0B]',

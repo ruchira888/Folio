@@ -223,3 +223,28 @@ export async function protectPdf(
 
   return data.data
 }
+
+/**
+ * Convert a PDF to dark mode and return a downloadable file.
+ */
+export async function darkModePdf(fileId: string): Promise<PdfFileResult> {
+  const response = await fetch(`${API_BASE_URL}/api/pdf/dark-mode`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ fileId }),
+  })
+
+  if (!response.ok) {
+    const error = await response.json()
+    throw new Error(error.error || 'Failed to convert PDF to dark mode')
+  }
+
+  const data: ApiResponse<PdfFileResult> = await response.json()
+  if (!data.success || !data.data) {
+    throw new Error('Invalid response from server')
+  }
+
+  return data.data
+}

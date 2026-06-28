@@ -1,4 +1,4 @@
-import { PDFDocument } from 'pdf-lib'
+import { PDFDocument as PdfLibDocument } from 'pdf-lib'
 import { UTApi } from 'uploadthing/server'
 import { storage } from '../index'
 import { logger } from '../logger'
@@ -26,7 +26,7 @@ export async function deletePagesService(
   const buffer = await storage.getBuffer(fileId)
 
   // Load into pdf-lib
-  const pdfDoc = await PDFDocument.load(buffer)
+  const pdfDoc = await (PdfLibDocument as any).load(buffer)
   const totalPages = pdfDoc.getPageCount()
 
   // Validate page numbers
@@ -73,3 +73,4 @@ export async function deletePagesService(
     fileKey: uploaded.data.key
   }
 }
+
