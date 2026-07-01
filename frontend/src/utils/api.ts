@@ -315,3 +315,32 @@ export async function watermarkPdf(
   return data.data
 }
 
+/**
+ * Translate a PDF to another language.
+ */
+export async function translatePdf(
+  fileId: string,
+  targetLanguage: string
+): Promise<PdfFileResult> {
+  const response = await fetch(`${API_BASE_URL}/api/pdf/translate`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ fileId, targetLanguage }),
+  })
+
+  if (!response.ok) {
+    const error = await response.json()
+    throw new Error(error.error || 'Failed to translate PDF')
+  }
+
+  const data: ApiResponse<PdfFileResult> = await response.json()
+  if (!data.success || !data.data) {
+    throw new Error('Invalid response from server')
+  }
+
+  return data.data
+}
+
+
