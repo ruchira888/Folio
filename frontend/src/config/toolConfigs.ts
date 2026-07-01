@@ -223,7 +223,7 @@ export const TOOL_MODAL_CONFIG: Record<ToolType, ToolModalConfig> = {
     tagColor: 'text-[#F97316]',
   },
   convert: {
-    title: 'Convert to PDF',
+    title: 'Convert to Markdown',
     description: 'Convert Word, Excel, images and more to PDF.',
     icon: FileText,
     iconBg: 'bg-white',

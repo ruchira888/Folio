@@ -109,7 +109,7 @@ export default function ToolsGrid({
     {
       id: 'convert',
       category: 'CONVERT',
-      title: 'Convert to PDF',
+      title: 'Convert to Markdown',
       description: 'Convert Word, Excel, images and more to PDF.',
       tag: 'Many Formats',
       tagIcon: FileText,
