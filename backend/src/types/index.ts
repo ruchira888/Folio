@@ -67,3 +67,18 @@ export type ThumbnailData = {
 export type ThumbnailsResponse = {
   pages: ThumbnailData[]
 }
+
+export type WatermarkPdfRequestBody = {
+  fileId: string
+  text: string
+  color: string
+  transparency: number
+  fontSize: number
+  position: 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right' | 'center' | 'diagonal'
+}
+
+export type WatermarkPdfResult = {
+  fileUrl: string
+  fileKey: string
+}
+

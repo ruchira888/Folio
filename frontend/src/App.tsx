@@ -7,6 +7,7 @@ import DeletePagesModal from './components/DeletePagesModal';
 import ProtectPdfModal from './components/ProtectPdfModal';
 import DarkModePdfModal from './components/DarkModePdfModal';
 import ConvertToMarkdownModal from './components/ConvertToMarkdownModal';
+import WatermarkPdfModal from './components/WatermarkPdfModal';
 import { useState } from 'react';
 import { isModalTool, type ToolType } from './config/toolConfigs';
 
@@ -80,7 +81,12 @@ function App() {
         onClose={closeModal}
       />
 
-      {activeTool && activeTool !== 'summarize' && activeTool !== 'delete-pages' && activeTool !== 'protect' && activeTool !== 'dark-mode' && activeTool !== 'convert' && isModalTool(activeTool) && (
+      <WatermarkPdfModal
+        isOpen={activeTool === 'watermark'}
+        onClose={closeModal}
+      />
+
+      {activeTool && activeTool !== 'summarize' && activeTool !== 'delete-pages' && activeTool !== 'protect' && activeTool !== 'dark-mode' && activeTool !== 'convert' && activeTool !== 'watermark' && isModalTool(activeTool) && (
         <GenericToolModal
           isOpen
           toolType={activeTool}

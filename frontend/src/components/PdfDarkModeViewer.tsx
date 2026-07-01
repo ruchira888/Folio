@@ -1,12 +1,10 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
-import { Download, ChevronLeft, ChevronRight, Loader2, Scan, FileText, Moon } from 'lucide-react'
+import { Download, ChevronLeft, ChevronRight, Loader2, Scan, FileText } from 'lucide-react'
 import {
   loadPdf,
   scanPages,
   renderPageCanvas,
   renderTextLayer,
-  applySoftInvert,
-  generateDarkModePdf,
   type PdfDocument,
   type PageRenderResult,
 } from '../utils/pdfDarkMode'
@@ -16,22 +14,12 @@ interface PdfDarkModeViewerProps {
   onBack: () => void
 }
 
-interface RenderedPage {
-  pageNumber: number
-  pageType: 'text' | 'scanned'
-  canvasRef: React.RefObject<HTMLCanvasElement | null>
-  textLayerRef: React.RefObject<HTMLDivElement | null>
-  canvasContainerRef: React.RefObject<HTMLDivElement | null>
-  width: number
-  height: number
-}
 
 export default function PdfDarkModeViewer({ file, onBack }: PdfDarkModeViewerProps) {
   const [pdf, setPdf] = useState<PdfDocument | null>(null)
   const [pageResults, setPageResults] = useState<PageRenderResult[]>([])
   const [currentPage, setCurrentPage] = useState(1)
   const [loading, setLoading] = useState(true)
-  const [renderingPages, setRenderingPages] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [downloading, setDownloading] = useState(false)
   const [downloadProgress, setDownloadProgress] = useState({ current: 0, total: 0 })
@@ -78,7 +66,6 @@ export default function PdfDarkModeViewer({ file, onBack }: PdfDarkModeViewerPro
       if (page > 1) pagesToRender.unshift(page - 1)
       if (page < pageResults.length) pagesToRender.push(page + 1)
 
-      setRenderingPages(true)
       for (const idx of pagesToRender) {
         const result = pageResults[idx - 1]
         if (!result) continue
@@ -100,15 +87,13 @@ export default function PdfDarkModeViewer({ file, onBack }: PdfDarkModeViewerPro
           await renderTextLayer(sourcePage, textLayerEl)
           canvasContainer.style.filter = ''
         } else {
-          // Scanned: soft invert the canvas container
+          // Scanned: no invert, leave as-is
           canvasContainer.style.filter = ''
-          applySoftInvert(canvas)
         }
 
         canvas.dataset.rendered = String(idx)
         textLayerEl.dataset.rendered = String(idx)
       }
-      setRenderingPages(false)
     },
     [pdf, pageResults],
   )
@@ -125,21 +110,10 @@ export default function PdfDarkModeViewer({ file, onBack }: PdfDarkModeViewerPro
     setDownloadProgress({ current: 0, total: pageResults.length })
 
     try {
-      const blob = await generateDarkModePdf(
-        file,
-        pageResults,
-        file.name.replace(/\.pdf$/i, '-dark.pdf'),
-        (current, total) => setDownloadProgress({ current, total }),
-      )
-
-      const url = URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.href = url
-      a.download = file.name.replace(/\.pdf$/i, '-dark.pdf')
-      document.body.appendChild(a)
-      a.click()
-      document.body.removeChild(a)
-      URL.revokeObjectURL(url)
+      // Dark mode is now handled server-side; client download not available
+      setDownloadProgress({ current: pageResults.length, total: pageResults.length })
+      setError('Client-side dark PDF generation is not available. Use the Dark Mode tool from the main page.')
+      setDownloading(false)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to generate dark-mode PDF')
     } finally {

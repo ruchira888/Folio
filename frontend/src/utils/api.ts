@@ -278,3 +278,40 @@ export async function convertPdfToMarkdown(fileId: string): Promise<MarkdownFile
 
   return data.data
 }
+
+export interface WatermarkPdfOptions {
+  text: string
+  color: string
+  transparency: number
+  fontSize: number
+  position: 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right' | 'center' | 'diagonal'
+}
+
+/**
+ * Add a custom text watermark to every page of a PDF.
+ */
+export async function watermarkPdf(
+  fileId: string,
+  options: WatermarkPdfOptions
+): Promise<PdfFileResult> {
+  const response = await fetch(`${API_BASE_URL}/api/pdf/watermark`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ fileId, ...options }),
+  })
+
+  if (!response.ok) {
+    const error = await response.json()
+    throw new Error(error.error || 'Failed to add watermark to PDF')
+  }
+
+  const data: ApiResponse<PdfFileResult> = await response.json()
+  if (!data.success || !data.data) {
+    throw new Error('Invalid response from server')
+  }
+
+  return data.data
+}
+

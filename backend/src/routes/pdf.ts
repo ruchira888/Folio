@@ -3,11 +3,12 @@ import rateLimit,{ipKeyGenerator} from 'express-rate-limit'
 import { PDFDocument as PdfLibDocument, rgb } from 'pdf-lib'
 import pdfParse from 'pdf-parse'
 import { storage } from '../index'
-import { AnnotateRequestBody, ApiResponse, DarkModeRequestBody, DeletePagesRequestBody, MarkdownExportRequestBody, ProtectPdfRequestBody } from '../types'
+import { AnnotateRequestBody, ApiResponse, DarkModeRequestBody, DeletePagesRequestBody, MarkdownExportRequestBody, ProtectPdfRequestBody, WatermarkPdfRequestBody } from '../types'
 import { summarizePdf } from '../services/summaryService'
 import { deletePagesService } from '../services/deletePagesService'
 import { protectPdfService } from '../services/protectPdfService'
 import { darkModeService } from '../services/darkModeService'
+import { watermarkPdfService } from '../services/watermarkService'
 import { exportPdfToMarkdown } from '../services/markdownExportService'
 import { generateThumbnails } from '../services/thumbnailService'
 import { logger } from '../logger'
@@ -430,6 +431,50 @@ pdfRouter.post(
         })
         return
       }
+      next(err)
+    }
+  }
+)
+
+// ─── WATERMARK ───────────────────────────────────────────────────────────────
+
+pdfRouter.post(
+  '/watermark',
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { fileId, text, color, transparency, fontSize, position }: WatermarkPdfRequestBody = req.body
+
+      if (!fileId) {
+        res.status(400).json({ success: false, error: 'Missing fileId' })
+        return
+      }
+      if (!text || text.trim().length === 0) {
+        res.status(400).json({ success: false, error: 'Watermark text must not be empty' })
+        return
+      }
+
+      const record = storage.getRecord(fileId)
+      if (!record) {
+        res.status(404).json({ success: false, error: 'File not found or expired' })
+        return
+      }
+
+      const result = await watermarkPdfService(
+        fileId,
+        text,
+        color || '#000000',
+        transparency ?? 0.3,
+        fontSize ?? 36,
+        position || 'diagonal'
+      )
+
+      logger.info(`Watermark complete for: ${fileId}`)
+
+      res.json({
+        success: true,
+        data: result
+      } as ApiResponse<{ fileUrl: string; fileKey: string }>)
+    } catch (err) {
       next(err)
     }
   }

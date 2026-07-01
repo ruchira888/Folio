@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
 import { 
-  Search, Sparkles, PenTool, GitMerge, Moon, Languages, 
+  Search, Sparkles, PenTool, Moon, Languages, 
   FileText, Lock, LayoutGrid, ShieldCheck, EyeOff, Monitor,
-  Zap, Eye, Activity, Scissors
+  Eye, Activity, Scissors, Type
 } from 'lucide-react';
 import ToolCard from './ToolCard';
 import { isModalTool, TOOL_MODAL_CONFIG, type ToolType } from '../config/toolConfigs';
@@ -59,13 +59,13 @@ export default function ToolsGrid({
       row: 1
     },
     {
-      id: 'merge',
-      category: 'MERGE',
-      title: 'Merge PDF',
-      description: 'Combine multiple PDF files into a single document.',
-      tag: 'Fast & Easy',
-      tagIcon: Zap,
-      icon: GitMerge,
+      id: 'watermark',
+      category: 'WATERMARK',
+      title: 'Add Watermark',
+      description: 'Add a custom text watermark to every page of your PDF.',
+      tag: 'Text styling',
+      tagIcon: Type,
+      icon: Type,
       color: 'green',
       row: 1
     },

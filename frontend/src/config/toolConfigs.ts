@@ -8,6 +8,7 @@ import {
   FileText,
   Scissors,
   Minimize2,
+  Type,
   type LucideIcon,
 } from 'lucide-react';
 
@@ -20,7 +21,8 @@ export type ToolType =
   | 'protect'
   | 'convert'
   | 'delete-pages'
-  | 'compress';
+  | 'compress'
+  | 'watermark';
 
 export interface ToolModalConfig {
   title: string;
@@ -101,6 +103,28 @@ export const TOOL_MODAL_CONFIG: Record<ToolType, ToolModalConfig> = {
     accept: 'application/pdf,.pdf',
     multiple: true,
     maxFiles: 10,
+    maxSizeMb: 20,
+    accentButton: 'bg-[#22C55E]',
+    accentButtonHover: 'hover:bg-[#1BA14D]',
+    dropzoneBorder: 'border-[#E0FFE8]',
+    dropzoneBg: 'bg-[#F0FFF4]',
+    formatsLabel: 'PDF',
+    cardBg: 'bg-[#C8F0D6]',
+    cardBorder: 'border-[#AEEAC0]',
+    tagBg: 'bg-[#BAEECE]',
+    tagColor: 'text-[#22C55E]',
+  },
+  watermark: {
+    title: 'Add Watermark',
+    description: 'Add a custom text watermark to every page of your PDF.',
+    icon: Type,
+    iconBg: 'bg-white',
+    iconColor: 'text-[#22C55E]',
+    buttonText: 'Select PDF File',
+    dropHint: 'or drag & drop PDF here',
+    accept: 'application/pdf,.pdf',
+    multiple: false,
+    maxFiles: 1,
     maxSizeMb: 20,
     accentButton: 'bg-[#22C55E]',
     accentButtonHover: 'hover:bg-[#1BA14D]',
@@ -256,6 +280,7 @@ export const MODAL_TOOL_IDS: ToolType[] = [
   'convert',
   'delete-pages',
   'compress',
+  'watermark',
 ];
 
 export function isModalTool(id: string): id is ToolType {
