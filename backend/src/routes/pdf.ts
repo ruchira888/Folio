@@ -381,7 +381,14 @@ pdfRouter.post(
         success: true,
         data: result
       } as ApiResponse<{ fileUrl: string; fileKey: string }>)
-    } catch (err) {
+    } catch (err: any) {
+      if (err?.message === 'UNSUPPORTED_SCANNED_PDF') {
+        res.status(422).json({
+          success: false,
+          error: 'Scanned or image-only PDFs are not supported. Please upload a text-based PDF.'
+        })
+        return
+      }
       next(err)
     }
   }

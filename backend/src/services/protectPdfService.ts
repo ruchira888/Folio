@@ -1,7 +1,17 @@
-import { PDFDocument as PdfLibDocument } from 'pdf-lib'
 import { UTApi } from 'uploadthing/server'
 import { storage } from '../index'
 import { logger } from '../logger'
+import { execFile } from 'child_process'
+import { promisify } from 'util'
+import * as fs from 'fs'
+import * as path from 'path'
+import * as os from 'os'
+
+const execFileAsync = promisify(execFile)
+
+const projectRoot: string = process.cwd()
+const PYTHON_EXE = process.env.PYTHON_PATH || 'python'
+const PROTECT_SCRIPT = path.join(projectRoot, 'src', 'scripts', 'protectPdf.py')
 
 export interface ProtectPdfResult {
   fileUrl: string
@@ -25,21 +35,48 @@ export async function protectPdfService(
   // Download PDF bytes
   const buffer = await storage.getBuffer(fileId)
 
-  // Load into pdf-lib
-  const documentToProtect: any = await (PdfLibDocument as any).load(buffer)
+  const tempDir = os.tmpdir()
+  const inputPath = path.join(tempDir, `protect-in-${fileId}.pdf`)
+  const outputPath = path.join(tempDir, `protect-out-${fileId}.pdf`)
 
-  // Encrypt with user-supplied password
-  documentToProtect.encrypt({
-    userPassword: password,
-    ownerPassword: password
-  })
+  let protectedBuffer: Buffer
+  try {
+    fs.writeFileSync(inputPath, buffer)
 
-  // Serialise protected PDF
-  const bytes = await documentToProtect.save()
+    const { stdout, stderr } = await execFileAsync(
+      PYTHON_EXE,
+      [PROTECT_SCRIPT, inputPath, outputPath, password],
+      {
+        timeout: 120000,
+        maxBuffer: 20 * 1024 * 1024,
+      }
+    )
+
+    if (stderr?.trim()) {
+      logger.warn(`protectPdf.py stderr: ${stderr.trim()}`)
+    }
+
+    const result = stdout.trim()
+    if (!result.startsWith('SUCCESS')) {
+      throw new Error(result || 'Failed to encrypt PDF')
+    }
+
+    protectedBuffer = fs.readFileSync(outputPath)
+  } catch (error: any) {
+    const message = String(error?.message || error)
+    if (message.includes('No module named') || message.includes('pikepdf')) {
+      throw new Error('PDF encryption dependency missing on server (pikepdf).')
+    }
+    throw error
+  } finally {
+    try { fs.unlinkSync(inputPath) } catch {}
+    try { fs.unlinkSync(outputPath) } catch {}
+  }
 
   // Upload to UploadThing
+  const uploadBytes = new Uint8Array(protectedBuffer)
   const file = new File(
-    [bytes.buffer as ArrayBuffer],
+    [uploadBytes],
     `protected-${record.originalName}`,
     { type: 'application/pdf' }
   )
