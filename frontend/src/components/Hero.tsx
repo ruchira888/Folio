@@ -16,9 +16,9 @@ export default function Hero() {
             </h1>
 
             <h2 className="text-[32px] sm:text-[38px] md:text-[46px] font-medium tracking-tight mb-7 font-serif leading-[1.15]">
-              <span className="text-[#6366F1]">Smart</span>,{' '}
+              <span className="text-[#FFEABC]">Smart</span>,{' '}
               <span className="text-[#EC4899]">fast</span>,{' '}
-              <span className="text-[#3B82F6]">secure</span>.
+              <span className="text-[#E8D6FF]">secure</span>.
             </h2>
 
             {/* Description */}

@@ -110,7 +110,7 @@ export default function ToolsGrid({
       id: 'convert',
       category: 'CONVERT',
       title: 'Convert to Markdown',
-      description: 'Convert Word, Excel, images and more to PDF.',
+      description: 'Extract text-based PDFs into clean Markdown files.',
       tag: 'Many Formats',
       tagIcon: FileText,
       icon: FileText,
@@ -179,7 +179,7 @@ export default function ToolsGrid({
   const hasResults = filteredTools.length > 0;
 
   return (
-    <div className="relative z-20 w-full max-w-[1100px] mx-auto px-4 sm:px-6 md:px-8 mt-6 md:mt-10 mb-16">
+    <div className="relative z-20 w-full max-w-275 mx-auto px-4 sm:px-6 md:px-8 mt-6 md:mt-10 mb-16">
       {/* Tool Section Container Card - clean, solid and elegant */}
       <div
         className="rounded-[28px] md:rounded-[36px] border border-white/80 bg-[#FAF8FB]/95 backdrop-blur-xl shadow-[0_12px_40px_-12px_rgba(0,0,0,0.05)] p-5 sm:p-7 md:p-10"
@@ -198,7 +198,7 @@ export default function ToolsGrid({
 
           {/* Search Box input */}
           <div className="relative w-full md:w-72">
-            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-[16px] h-[16px] text-slate-300 pointer-events-none" />
+            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-300 pointer-events-none" />
             <input
               type="text"
               placeholder="Search tools..."
@@ -309,7 +309,7 @@ export default function ToolsGrid({
                   className={`flex flex-col sm:flex-row items-start sm:items-center justify-between p-5 md:p-6 rounded-2xl border ${styles.border} ${styles.bg} transition-all duration-300`}
                 >
                   <div className="flex items-center gap-4">
-                    <div className={`p-2.5 rounded-xl ${styles.iconBg} flex-shrink-0`}>
+                    <div className={`p-2.5 rounded-xl ${styles.iconBg} shrink-0`}>
                       <Icon className="w-5 h-5" />
                     </div>
                     <div>
@@ -327,7 +327,7 @@ export default function ToolsGrid({
                     </div>
                   </div>
 
-                  <button className="mt-4 sm:mt-0 bg-white text-[#0F172A] font-semibold text-[12px] px-4 py-2.5 rounded-full border border-slate-200 shadow-sm hover:bg-slate-50 active:scale-[0.98] transition-all flex items-center gap-2 flex-shrink-0">
+                  <button className="mt-4 sm:mt-0 bg-white text-[#0F172A] font-semibold text-[12px] px-4 py-2.5 rounded-full border border-slate-200 shadow-sm hover:bg-slate-50 active:scale-[0.98] transition-all flex items-center gap-2 shrink-0">
                     <LayoutGrid className="w-3.5 h-3.5" />
                     View all tools
                   </button>
@@ -344,15 +344,15 @@ export default function ToolsGrid({
         {/* Core Promises Footer */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-5 pt-8 mt-8 border-t border-slate-100/60 text-center font-sans">
           <div className="flex items-center justify-center gap-2 text-slate-400 font-medium text-[12.5px]">
-            <ShieldCheck className="w-4 h-4 text-emerald-400 flex-shrink-0" />
+            <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0" />
             <span>Your files are secure and private.</span>
           </div>
           <div className="flex items-center justify-center gap-2 text-slate-400 font-medium text-[12.5px] border-y sm:border-y-0 sm:border-x border-slate-100/60 py-3 sm:py-0">
-            <EyeOff className="w-4 h-4 text-indigo-400 flex-shrink-0" />
+            <EyeOff className="w-4 h-4 text-indigo-400 shrink-0" />
             <span>We never store your documents.</span>
           </div>
           <div className="flex items-center justify-center gap-2 text-slate-400 font-medium text-[12.5px]">
-            <Monitor className="w-4 h-4 text-blue-400 flex-shrink-0" />
+            <Monitor className="w-4 h-4 text-blue-400 shrink-0" />
             <span>Works on any device.</span>
           </div>
         </div>

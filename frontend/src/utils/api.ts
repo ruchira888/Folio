@@ -134,6 +134,11 @@ export interface PdfFileResult {
   fileKey: string
 }
 
+export interface MarkdownFileResult {
+  fileUrl: string
+  fileKey: string
+}
+
 /**
  * Delete specific pages from a PDF
  */
@@ -242,6 +247,31 @@ export async function darkModePdf(fileId: string): Promise<PdfFileResult> {
   }
 
   const data: ApiResponse<PdfFileResult> = await response.json()
+  if (!data.success || !data.data) {
+    throw new Error('Invalid response from server')
+  }
+
+  return data.data
+}
+
+/**
+ * Convert a text-based PDF to Markdown and return a downloadable file.
+ */
+export async function convertPdfToMarkdown(fileId: string): Promise<MarkdownFileResult> {
+  const response = await fetch(`${API_BASE_URL}/api/pdf/markdown`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ fileId }),
+  })
+
+  if (!response.ok) {
+    const error = await response.json()
+    throw new Error(error.error || 'Failed to convert PDF to Markdown')
+  }
+
+  const data: ApiResponse<MarkdownFileResult> = await response.json()
   if (!data.success || !data.data) {
     throw new Error('Invalid response from server')
   }

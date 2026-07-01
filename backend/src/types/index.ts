@@ -37,11 +37,20 @@ export type ProtectPdfRequestBody = {
   password: string
 }
 
+export type MarkdownExportRequestBody = {
+  fileId: string
+}
+
 export type DarkModeRequestBody = {
   fileId: string
 }
 
 export type DarkModeResult = {
+  fileUrl: string
+  fileKey: string
+}
+
+export type MarkdownExportResult = {
   fileUrl: string
   fileKey: string
 }

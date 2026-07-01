@@ -6,6 +6,7 @@ import GenericToolModal from './components/GenericToolModal';
 import DeletePagesModal from './components/DeletePagesModal';
 import ProtectPdfModal from './components/ProtectPdfModal';
 import DarkModePdfModal from './components/DarkModePdfModal';
+import ConvertToMarkdownModal from './components/ConvertToMarkdownModal';
 import { useState } from 'react';
 import { isModalTool, type ToolType } from './config/toolConfigs';
 
@@ -41,7 +42,7 @@ function App() {
       </header>
 
       {/* Main content body */}
-      <main className="flex-grow flex flex-col items-center w-full relative z-10">
+      <main className="grow flex flex-col items-center w-full relative z-10">
         <Hero />
         <ToolsGrid setActiveTool={setActiveTool} />
       </main>
@@ -74,7 +75,12 @@ function App() {
         onClose={closeModal}
       />
 
-      {activeTool && activeTool !== 'summarize' && activeTool !== 'delete-pages' && activeTool !== 'protect' && activeTool !== 'dark-mode' && isModalTool(activeTool) && (
+      <ConvertToMarkdownModal
+        isOpen={activeTool === 'convert'}
+        onClose={closeModal}
+      />
+
+      {activeTool && activeTool !== 'summarize' && activeTool !== 'delete-pages' && activeTool !== 'protect' && activeTool !== 'dark-mode' && activeTool !== 'convert' && isModalTool(activeTool) && (
         <GenericToolModal
           isOpen
           toolType={activeTool}

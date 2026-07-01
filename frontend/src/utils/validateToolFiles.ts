@@ -24,10 +24,6 @@ export function validateToolFiles(
       return `Each file must be ${config.maxSizeMb}MB or smaller.`;
     }
 
-    if (toolType === 'convert') {
-      continue;
-    }
-
     if (file.type !== 'application/pdf' && !file.name.toLowerCase().endsWith('.pdf')) {
       return 'Please select a valid PDF file.';
     }
