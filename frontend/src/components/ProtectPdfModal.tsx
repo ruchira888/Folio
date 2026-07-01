@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useUploadThing } from '../utils/uploadthing';
 import { uploadComplete, protectPdf } from '../utils/api';
 import { validateToolFiles } from '../utils/validateToolFiles';
+import { downloadFile } from '../utils/download';
 import ToolModal from './ToolModal';
 import ModalOverlay from './ModalOverlay';
 import { X, Download, Lock, Eye, EyeOff } from 'lucide-react';
@@ -23,6 +24,7 @@ export default function ProtectPdfModal({ isOpen, onClose }: ProtectPdfModalProp
 
   // Phase 1: upload done, waiting for password
   const [fileId, setFileId] = useState<string | null>(null);
+  const [fileName, setFileName] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
 
@@ -37,6 +39,7 @@ export default function ProtectPdfModal({ isOpen, onClose }: ProtectPdfModalProp
       setError(validationError);
       return;
     }
+    setFileName(files[0].name);
     void handleUpload(files[0]);
   };
 
@@ -70,7 +73,9 @@ export default function ProtectPdfModal({ isOpen, onClose }: ProtectPdfModalProp
     setIsProcessing(true);
     try {
       const res = await protectPdf(fileId, password);
-      setResult({ fileUrl: res.fileUrl, fileName: `protected.pdf` });
+      const downloadName = fileName ? fileName.replace(/\.pdf$/i, '-protected.pdf') : 'protected.pdf';
+      setResult({ fileUrl: res.fileUrl, fileName: downloadName });
+      void downloadFile(res.fileUrl, downloadName);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to protect PDF');
     } finally {
@@ -83,6 +88,7 @@ export default function ProtectPdfModal({ isOpen, onClose }: ProtectPdfModalProp
   const handleClose = () => {
     if (isUploading || isProcessing) return;
     setFileId(null);
+    setFileName('');
     setPassword('');
     setShowPassword(false);
     setResult(null);
@@ -118,16 +124,13 @@ export default function ProtectPdfModal({ isOpen, onClose }: ProtectPdfModalProp
           </div>
 
           <div className="flex justify-center px-6 pb-10 sm:px-10">
-            <a
-              href={result.fileUrl}
-              download={result.fileName}
-              target="_blank"
-              rel="noopener noreferrer"
+            <button
+              onClick={() => void downloadFile(result.fileUrl, result.fileName)}
               className="flex items-center gap-2 rounded-xl bg-[#F43F5E] px-6 py-3 text-[15px] font-semibold text-white transition-colors hover:bg-[#E11D48]"
             >
               <Download className="h-4 w-4" />
               Download Protected PDF
-            </a>
+            </button>
           </div>
 
           <div className="border-t border-[#FFE4E4] bg-[#FFF8F8] px-6 py-4 text-center sm:px-10">

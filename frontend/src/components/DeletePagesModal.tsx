@@ -3,6 +3,7 @@ import { useUploadThing } from '../utils/uploadthing';
 import { uploadComplete, deletePages } from '../utils/api';
 import { generatePdfThumbnails, type PdfThumbnail } from '../utils/pdfThumbnails';
 import { validateToolFiles } from '../utils/validateToolFiles';
+import { downloadFile } from '../utils/download';
 import ToolModal from './ToolModal';
 import ModalOverlay from './ModalOverlay';
 import { X, Download, Scissors, Check, Info, ArrowRight, Loader2 } from 'lucide-react';
@@ -149,7 +150,9 @@ export default function DeletePagesModal({ isOpen, onClose }: DeletePagesModalPr
     setIsProcessing(true);
     try {
       const res = await deletePages(fileId, selectedPages);
-      setResult({ fileUrl: res.fileUrl, fileName: `deleted-pages.pdf` });
+      const downloadName = uploadedFile ? uploadedFile.name.replace(/\.pdf$/i, '-deleted.pdf') : 'deleted-pages.pdf';
+      setResult({ fileUrl: res.fileUrl, fileName: downloadName });
+      void downloadFile(res.fileUrl, downloadName);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to delete pages');
     } finally {
@@ -197,16 +200,13 @@ export default function DeletePagesModal({ isOpen, onClose }: DeletePagesModalPr
           </div>
 
           <div className="flex justify-center px-6 pb-10 sm:px-10">
-            <a
-              href={result.fileUrl}
-              download={result.fileName}
-              target="_blank"
-              rel="noopener noreferrer"
+            <button
+              onClick={() => void downloadFile(result.fileUrl, result.fileName)}
               className="flex items-center gap-2 rounded-xl bg-[#F97316] px-6 py-3 text-[15px] font-semibold text-white transition-colors hover:bg-[#EA6C00]"
             >
               <Download className="h-4 w-4" />
               Download PDF
-            </a>
+            </button>
           </div>
 
           <div className="border-t border-[#FFEAD5] bg-[#FFFBF7] px-6 py-4 text-center sm:px-10">

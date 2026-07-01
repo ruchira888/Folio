@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useUploadThing } from '../utils/uploadthing';
 import { uploadComplete, darkModePdf } from '../utils/api';
 import { validateToolFiles } from '../utils/validateToolFiles';
+import { downloadFile } from '../utils/download';
 import ModalOverlay from './ModalOverlay';
 import { X, Download, Moon, Loader2, AlertTriangle, CheckCircle, CloudUpload } from 'lucide-react';
 
@@ -62,6 +63,8 @@ export default function DarkModePdfModal({ isOpen, onClose }: DarkModePdfModalPr
         const res = await darkModePdf(uploaded.key);
         setResult(res);
         setStage('done');
+        const downloadName = file.name ? file.name.replace(/\.pdf$/i, '-dark.pdf') : 'dark.pdf';
+        void downloadFile(res.fileUrl, downloadName);
       } catch (err: any) {
         const msg = err instanceof Error ? err.message : 'Failed to convert PDF';
         if (msg.includes('Scanned') || msg.includes('image-only') || msg.includes('not supported')) {
@@ -81,14 +84,8 @@ export default function DarkModePdfModal({ isOpen, onClose }: DarkModePdfModalPr
 
   const handleDownload = () => {
     if (!result) return;
-    const a = document.createElement('a');
-    a.href = result.fileUrl;
-    a.download = fileName.replace(/\.pdf$/i, '-dark.pdf');
-    a.target = '_blank';
-    a.rel = 'noopener noreferrer';
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
+    const downloadName = fileName ? fileName.replace(/\.pdf$/i, '-dark.pdf') : 'dark.pdf';
+    void downloadFile(result.fileUrl, downloadName);
   };
 
   const handleReset = () => {
