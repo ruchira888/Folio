@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { motion } from 'framer-motion';
 import { 
   Search, LayoutGrid, ShieldCheck, EyeOff, Monitor
 } from 'lucide-react';
@@ -16,6 +17,11 @@ export default function ToolsGrid({
 }: ToolsGridProps) {
   const navigate = useNavigate();
   const [searchQuery, setSearchQuery] = useState('');
+  const [isLoaded, setIsLoaded] = useState(false);
+
+  useEffect(() => {
+    setIsLoaded(true);
+  }, []);
 
   const getColorStyles = (id: string) => {
     if (isModalTool(id)) {
@@ -52,8 +58,41 @@ export default function ToolsGrid({
   const specialTools = filteredTools.filter(t => t.isSpecial);
   const hasResults = filteredTools.length > 0;
 
+  // Container animation for the tools section
+  const containerVariants = {
+    hidden: { opacity: 0, y: 40 },
+    visible: {
+      opacity: 1,
+      y: 0,
+      transition: {
+        delay: 1.2,
+        duration: 0.6,
+        ease: 'easeOut',
+      },
+    },
+  };
+
+  // Staggered card animation
+  const cardVariants = {
+    hidden: { opacity: 0, y: 20 },
+    visible: (i: number) => ({
+      opacity: 1,
+      y: 0,
+      transition: {
+        delay: 1.2 + i * 0.08,
+        duration: 0.5,
+        ease: 'easeOut',
+      },
+    }),
+  };
+
   return (
-    <div className="relative z-20 w-full max-w-275 mx-auto px-4 sm:px-6 md:px-8 mt-6 md:mt-10 mb-16">
+    <motion.div
+      className="relative z-20 w-full max-w-275 mx-auto px-4 sm:px-6 md:px-8 mt-6 md:mt-10 mb-16"
+      initial="hidden"
+      animate={isLoaded ? 'visible' : 'hidden'}
+      variants={containerVariants}
+    >
       <div className="rounded-[28px] md:rounded-[36px] border border-white/80 bg-[#FAF8FB]/95 backdrop-blur-xl shadow-[0_12px_40px_-12px_rgba(0,0,0,0.05)] p-5 sm:p-7 md:p-10">
         
         <div className="flex flex-col md:flex-row md:items-end justify-between gap-5 mb-8 pb-5 border-b border-slate-100/80">
@@ -82,41 +121,80 @@ export default function ToolsGrid({
           <div className="flex flex-col gap-4 md:gap-5 text-left">
             {row1.length > 0 && (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-5">
-                {row1.map((tool) => (
-                  <ToolCard key={tool.id} {...tool} styles={getColorStyles(tool.id)} onClick={isModalTool(tool.id) ? () => setActiveTool(tool.id as ToolType) : undefined} />
+                {row1.map((tool, index) => (
+                  <motion.div
+                    key={tool.id}
+                    custom={index}
+                    variants={cardVariants}
+                    initial="hidden"
+                    animate={isLoaded ? 'visible' : 'hidden'}
+                  >
+                    <ToolCard {...tool} styles={getColorStyles(tool.id)} onClick={isModalTool(tool.id) ? () => setActiveTool(tool.id as ToolType) : undefined} />
+                  </motion.div>
                 ))}
               </div>
             )}
 
             {row2.length > 0 && (
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 md:gap-5">
-                {row2.map((tool) => (
-                  <ToolCard key={tool.id} {...tool} styles={getColorStyles(tool.id)} onClick={isModalTool(tool.id) ? () => setActiveTool(tool.id as ToolType) : undefined} />
+                {row2.map((tool, index) => (
+                  <motion.div
+                    key={tool.id}
+                    custom={row1.length + index}
+                    variants={cardVariants}
+                    initial="hidden"
+                    animate={isLoaded ? 'visible' : 'hidden'}
+                  >
+                    <ToolCard {...tool} styles={getColorStyles(tool.id)} onClick={isModalTool(tool.id) ? () => setActiveTool(tool.id as ToolType) : undefined} />
+                  </motion.div>
                 ))}
               </div>
             )}
 
             {row3.length > 0 && (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-5">
-                {row3.map((tool) => (
-                  <ToolCard key={tool.id} {...tool} styles={getColorStyles(tool.id)} onClick={isModalTool(tool.id) ? () => setActiveTool(tool.id as ToolType) : undefined} />
+                {row3.map((tool, index) => (
+                  <motion.div
+                    key={tool.id}
+                    custom={row1.length + row2.length + index}
+                    variants={cardVariants}
+                    initial="hidden"
+                    animate={isLoaded ? 'visible' : 'hidden'}
+                  >
+                    <ToolCard {...tool} styles={getColorStyles(tool.id)} onClick={isModalTool(tool.id) ? () => setActiveTool(tool.id as ToolType) : undefined} />
+                  </motion.div>
                 ))}
               </div>
             )}
 
             {row4.length > 0 && (
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 md:gap-5 lg:w-2/3">
-                {row4.map((tool) => (
-                  <ToolCard key={tool.id} {...tool} styles={getColorStyles(tool.id)} onClick={isModalTool(tool.id) ? () => setActiveTool(tool.id as ToolType) : undefined} />
+                {row4.map((tool, index) => (
+                  <motion.div
+                    key={tool.id}
+                    custom={row1.length + row2.length + row3.length + index}
+                    variants={cardVariants}
+                    initial="hidden"
+                    animate={isLoaded ? 'visible' : 'hidden'}
+                  >
+                    <ToolCard {...tool} styles={getColorStyles(tool.id)} onClick={isModalTool(tool.id) ? () => setActiveTool(tool.id as ToolType) : undefined} />
+                  </motion.div>
                 ))}
               </div>
             )}
 
-            {specialTools.map((tool) => {
+            {specialTools.map((tool, index) => {
               const styles = getColorStyles(tool.id);
               const Icon = tool.icon;
               return (
-                <div key={tool.id} className={`flex flex-col sm:flex-row items-start sm:items-center justify-between p-5 md:p-6 rounded-2xl border ${styles.border} ${styles.bg} transition-all duration-300`}>
+                <motion.div
+                  key={tool.id}
+                  custom={row1.length + row2.length + row3.length + row4.length + index}
+                  variants={cardVariants}
+                  initial="hidden"
+                  animate={isLoaded ? 'visible' : 'hidden'}
+                  className={`flex flex-col sm:flex-row items-start sm:items-center justify-between p-5 md:p-6 rounded-2xl border ${styles.border} ${styles.bg} transition-all duration-300`}
+                >
                   <div className="flex items-center gap-4">
                     <div className={`p-2.5 rounded-xl ${styles.iconBg} shrink-0`}>
                       <Icon className="w-5 h-5" />
@@ -135,7 +213,7 @@ export default function ToolsGrid({
                     <LayoutGrid className="w-3.5 h-3.5" />
                     View all tools
                   </button>
-                </div>
+                </motion.div>
               );
             })}
           </div>
@@ -160,6 +238,6 @@ export default function ToolsGrid({
           </div>
         </div>
       </div>
-    </div>
+    </motion.div>
   );
 }

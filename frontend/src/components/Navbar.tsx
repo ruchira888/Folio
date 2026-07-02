@@ -1,9 +1,26 @@
 import { ChevronDown } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import { motion } from 'framer-motion';
+import { useEffect, useState } from 'react';
 
 export default function Navbar() {
+  const [isLoaded, setIsLoaded] = useState(false);
+
+  useEffect(() => {
+    setIsLoaded(true);
+  }, []);
+
   return (
-    <nav className="w-full max-w-6xl mx-auto mt-4 px-2">
+    <motion.nav
+      className="w-full max-w-6xl mx-auto mt-4 px-2"
+      initial={{ opacity: 0, y: -20 }}
+      animate={isLoaded ? { opacity: 1, y: 0 } : { opacity: 0, y: -20 }}
+      transition={{
+        delay: 0.2,
+        duration: 0.5,
+        ease: 'easeOut',
+      }}
+    >
       <div className="bg-white/90 backdrop-blur-md rounded-full shadow-[0_2px_20px_-4px_rgba(0,0,0,0.06)] border border-white/60 px-5 md:px-8 py-3 flex items-center justify-between">
         {/* Logo */}
         <Link to="/" className="flex items-center cursor-pointer select-none no-underline">
@@ -34,6 +51,6 @@ export default function Navbar() {
           </button>
         </div>
       </div>
-    </nav>
+    </motion.nav>
   );
 }
