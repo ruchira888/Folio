@@ -9,6 +9,7 @@ import { PDFDocument, rgb, StandardFonts } from 'pdf-lib';
 import ModalOverlay from './ModalOverlay';
 import ToolModal from './ToolModal';
 import { validateToolFiles } from '../utils/validateToolFiles';
+import { extractPdfTextBlocks } from '../utils/pdfTextExtract';
 
 // ─── PDF.js worker setup ───────────────────────────────────────────────────────
 pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
@@ -17,7 +18,7 @@ pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
 ).href;
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
-type EditorMode = 'selection' | 'edit' | 'signature';
+type EditorMode = 'selection' | 'edit' | 'textbox' | 'signature';
 
 interface TextAnnotation {
   id: string;
@@ -36,6 +37,12 @@ interface TextAnnotation {
   fontSize: number;
   /** Hex colour */
   color: string;
+  /** Parsed from the PDF text layer */
+  isExtracted?: boolean;
+  /** Original text before user edits */
+  originalText?: string;
+  /** Baseline Y in PDF coords (origin bottom-left) */
+  pdfBaselineY?: number;
 }
 
 interface SignatureAnnotation {
@@ -61,11 +68,27 @@ interface SavedSignature {
   createdAt: number;
 }
 
+interface TextboxDraft {
+  pageIndex: number;
+  startX: number;
+  startY: number;
+  currentX: number;
+  currentY: number;
+}
+
 interface PageInfo {
   pageNumber: number;
   width: number;
   height: number;
   viewport: pdfjsLib.PageViewport;
+}
+
+/**
+ * Convert PDF-point coordinates to CSS pixels in the page container.
+ * Annotations are stored in PDF points; the canvas is rendered at RENDER_SCALE.
+ */
+function pdfPointsToCss(pdfPoints: number, displayScale: number): number {
+  return pdfPoints * displayScale;
 }
 
 // ─── Constants ─────────────────────────────────────────────────────────────────
@@ -75,6 +98,14 @@ const STORAGE_KEY = 'folio_saved_signatures';
 // ─── Helpers ───────────────────────────────────────────────────────────────────
 function generateId() {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+}
+
+function cloneArrayBuffer(buffer: ArrayBuffer): ArrayBuffer {
+  return buffer.slice(0);
+}
+
+function clamp(value: number, min: number, max: number): number {
+  return Math.min(Math.max(value, min), max);
 }
 
 function loadSavedSignatures(): SavedSignature[] {
@@ -333,11 +364,14 @@ export default function AnnotatePdfModal({ isOpen, onClose }: AnnotatePdfModalPr
   const [signatureAnnotations, setSignatureAnnotations] = useState<SignatureAnnotation[]>([]);
   const [editingAnnotation, setEditingAnnotation] = useState<string | null>(null);
   const [applying, setApplying] = useState(false);
+  const [extractingText, setExtractingText] = useState(false);
+  const textExtractedRef = useRef(false);
 
   // ── Signature state ──
   const [savedSignatures, setSavedSignatures] = useState<SavedSignature[]>(loadSavedSignatures);
   const [showSignatureCreator, setShowSignatureCreator] = useState(false);
   const [draggingSignature, setDraggingSignature] = useState<SavedSignature | null>(null);
+  const [textboxDraft, setTextboxDraft] = useState<TextboxDraft | null>(null);
 
   // ── Refs ──
   const canvasRefs = useRef<(HTMLCanvasElement | null)[]>([]);
@@ -358,10 +392,12 @@ export default function AnnotatePdfModal({ isOpen, onClose }: AnnotatePdfModalPr
     const reader = new FileReader();
     reader.onload = async () => {
       const buffer = reader.result as ArrayBuffer;
-      setPdfBytes(buffer);
+      const editorBuffer = cloneArrayBuffer(buffer);
+      const viewerBuffer = cloneArrayBuffer(buffer);
+      setPdfBytes(editorBuffer);
       try {
         const doc = await pdfjsLib.getDocument({
-          data: new Uint8Array(buffer),
+          data: new Uint8Array(viewerBuffer),
           useSystemFonts: true,
         }).promise;
         setPdfDoc(doc);
@@ -419,22 +455,75 @@ export default function AnnotatePdfModal({ isOpen, onClose }: AnnotatePdfModalPr
     return () => { cancelled = true; };
   }, [pdfDoc, pages, scale]);
 
+  // ── Extract existing PDF text when entering Edit mode ──
+  useEffect(() => {
+    if (mode !== 'edit' || !pdfDoc || textExtractedRef.current) return;
+
+    let cancelled = false;
+
+    const extract = async () => {
+      setExtractingText(true);
+      setError(null);
+      try {
+        const blocks = await extractPdfTextBlocks(
+          (pageNumber) => pdfDoc.getPage(pageNumber),
+          pdfDoc.numPages,
+        );
+
+        if (cancelled) return;
+
+        if (blocks.length === 0) {
+          setError(
+            'No editable text found. This PDF may be scanned or image-based.',
+          );
+        }
+
+        const extracted: TextAnnotation[] = blocks.map((block) => ({
+          id: generateId(),
+          pageIndex: block.pageIndex,
+          x: block.x,
+          y: block.y,
+          width: block.width,
+          height: block.height,
+          text: block.text,
+          originalText: block.text,
+          fontSize: block.fontSize,
+          color: '#000000',
+          isExtracted: true,
+          pdfBaselineY: block.pdfBaselineY,
+        }));
+
+        setTextAnnotations((prev) => {
+          const userAdded = prev.filter((a) => !a.isExtracted);
+          return [...extracted, ...userAdded];
+        });
+        textExtractedRef.current = true;
+      } catch (err) {
+        if (!cancelled) {
+          setError(err instanceof Error ? err.message : 'Failed to extract PDF text');
+        }
+      } finally {
+        if (!cancelled) setExtractingText(false);
+      }
+    };
+
+    extract();
+    return () => { cancelled = true; };
+  }, [mode, pdfDoc]);
+
   // ── Handle click on page (Edit Mode) ──
   const handlePageClick = useCallback(
     (e: React.MouseEvent, pageIndex: number) => {
-      if (mode !== 'edit') return;
+      if (mode !== 'edit' || extractingText) return;
 
+      // Check if clicking on an existing annotation
       const container = pageContainerRefs.current[pageIndex];
       if (!container) return;
 
       const rect = container.getBoundingClientRect();
       const displayScale = RENDER_SCALE * scale;
-
-      // Position in PDF points
       const clickX = (e.clientX - rect.left) / displayScale;
       const clickY = (e.clientY - rect.top) / displayScale;
-
-      // Check if clicking on an existing annotation
       const existing = textAnnotations.find(
         (a) =>
           a.pageIndex === pageIndex &&
@@ -449,22 +538,9 @@ export default function AnnotatePdfModal({ isOpen, onClose }: AnnotatePdfModalPr
         return;
       }
 
-      // Create a new text annotation
-      const newAnnotation: TextAnnotation = {
-        id: generateId(),
-        pageIndex,
-        x: clickX,
-        y: clickY,
-        width: 150,
-        height: 24,
-        text: '',
-        fontSize: 12,
-        color: '#000000',
-      };
-      setTextAnnotations((prev) => [...prev, newAnnotation]);
-      setEditingAnnotation(newAnnotation.id);
+      setEditingAnnotation(null);
     },
-    [mode, scale, textAnnotations],
+    [mode, scale, textAnnotations, extractingText],
   );
 
   // ── Handle signature drop on page ──
@@ -496,6 +572,91 @@ export default function AnnotatePdfModal({ isOpen, onClose }: AnnotatePdfModalPr
       setDraggingSignature(null);
     },
     [draggingSignature, scale],
+  );
+
+  // ── Handle drag-to-place text boxes on page ──
+  const handleTextboxPointerDown = useCallback(
+    (e: React.MouseEvent, pageIndex: number) => {
+      if (mode !== 'textbox') return;
+
+      const target = e.target as HTMLElement;
+      if (target.closest('[data-annotation-overlay="true"]')) return;
+
+      const container = pageContainerRefs.current[pageIndex];
+      if (!container) return;
+
+      e.preventDefault();
+      e.stopPropagation();
+      setEditingAnnotation(null);
+
+      const rect = container.getBoundingClientRect();
+      const displayScale = RENDER_SCALE * scale;
+      const pageWidth = rect.width / displayScale;
+      const pageHeight = rect.height / displayScale;
+
+      const startX = clamp((e.clientX - rect.left) / displayScale, 0, pageWidth);
+      const startY = clamp((e.clientY - rect.top) / displayScale, 0, pageHeight);
+
+      let currentX = startX;
+      let currentY = startY;
+
+      setTextboxDraft({
+        pageIndex,
+        startX,
+        startY,
+        currentX,
+        currentY,
+      });
+
+      const onMove = (me: MouseEvent) => {
+        currentX = clamp((me.clientX - rect.left) / displayScale, 0, pageWidth);
+        currentY = clamp((me.clientY - rect.top) / displayScale, 0, pageHeight);
+        setTextboxDraft((prev) =>
+          prev
+            ? {
+                ...prev,
+                currentX,
+                currentY,
+              }
+            : prev,
+        );
+      };
+
+      const onUp = () => {
+        window.removeEventListener('mousemove', onMove);
+        window.removeEventListener('mouseup', onUp);
+        setTextboxDraft(null);
+
+        const draggedDistance = Math.max(
+          Math.abs(currentX - startX),
+          Math.abs(currentY - startY),
+        );
+
+        const annotationWidth = draggedDistance < 6 ? 180 : Math.max(120, Math.abs(currentX - startX));
+        const annotationHeight = draggedDistance < 6 ? 32 : Math.max(32, Math.abs(currentY - startY));
+        const annotationX = draggedDistance < 6 ? startX : Math.min(startX, currentX);
+        const annotationY = draggedDistance < 6 ? startY : Math.min(startY, currentY);
+
+        const newAnnotation: TextAnnotation = {
+          id: generateId(),
+          pageIndex,
+          x: clamp(annotationX, 0, Math.max(0, pageWidth - annotationWidth)),
+          y: clamp(annotationY, 0, Math.max(0, pageHeight - annotationHeight)),
+          width: annotationWidth,
+          height: annotationHeight,
+          text: '',
+          fontSize: 12,
+          color: '#000000',
+        };
+
+        setTextAnnotations((prev) => [...prev, newAnnotation]);
+        setEditingAnnotation(newAnnotation.id);
+      };
+
+      window.addEventListener('mousemove', onMove);
+      window.addEventListener('mouseup', onUp);
+    },
+    [mode, scale],
   );
 
   // ── Handle signature drag on page (reposition) ──
@@ -601,13 +762,17 @@ export default function AnnotatePdfModal({ isOpen, onClose }: AnnotatePdfModalPr
     setError(null);
 
     try {
-      const doc = await PDFDocument.load(pdfBytes);
+      const sourceBuffer = cloneArrayBuffer(pdfBytes);
+      const doc = await PDFDocument.load(sourceBuffer);
       const helveticaFont = await doc.embedFont(StandardFonts.Helvetica);
       const pdfPages = doc.getPages();
 
       // Apply text annotations
       for (const ann of textAnnotations) {
-        if (!ann.text.trim()) continue;
+        const hasReplacementText = ann.text.trim().length > 0;
+        if (!ann.isExtracted && !hasReplacementText) continue;
+        if (ann.isExtracted && ann.text === ann.originalText) continue;
+
         const page = pdfPages[ann.pageIndex];
         if (!page) continue;
 
@@ -622,6 +787,10 @@ export default function AnnotatePdfModal({ isOpen, onClose }: AnnotatePdfModalPr
           color: rgb(1, 1, 1),
         });
 
+        if (!hasReplacementText) {
+          continue;
+        }
+
         // Draw replacement text
         const hexToRgb = (hex: string) => {
           const r = parseInt(hex.slice(1, 3), 16) / 255;
@@ -630,9 +799,14 @@ export default function AnnotatePdfModal({ isOpen, onClose }: AnnotatePdfModalPr
           return rgb(r, g, b);
         };
 
+        const textY =
+          ann.pdfBaselineY !== undefined
+            ? ann.pdfBaselineY
+            : pageHeight - ann.y - ann.height + 4;
+
         page.drawText(ann.text, {
           x: ann.x + 2,
-          y: pageHeight - ann.y - ann.height + 4,
+          y: textY,
           size: ann.fontSize,
           font: helveticaFont,
           color: hexToRgb(ann.color),
@@ -671,7 +845,9 @@ export default function AnnotatePdfModal({ isOpen, onClose }: AnnotatePdfModalPr
 
       // Generate and download
       const modifiedBytes = await doc.save();
-      const blob = new Blob([modifiedBytes.buffer as ArrayBuffer], { type: 'application/pdf' });
+      const pdfBuffer = new ArrayBuffer(modifiedBytes.byteLength);
+      new Uint8Array(pdfBuffer).set(modifiedBytes);
+      const blob = new Blob([pdfBuffer], { type: 'application/pdf' });
       const url = URL.createObjectURL(blob);
 
       const link = document.createElement('a');
@@ -703,6 +879,9 @@ export default function AnnotatePdfModal({ isOpen, onClose }: AnnotatePdfModalPr
     setTextAnnotations([]);
     setSignatureAnnotations([]);
     setEditingAnnotation(null);
+    setTextboxDraft(null);
+    setExtractingText(false);
+    textExtractedRef.current = false;
     setError(null);
     setApplying(false);
     onClose();
@@ -737,12 +916,16 @@ export default function AnnotatePdfModal({ isOpen, onClose }: AnnotatePdfModalPr
 
   // ── Phase 1: Editor ──
   const displayScale = RENDER_SCALE * scale;
-  const hasAnnotations = textAnnotations.length > 0 || signatureAnnotations.length > 0;
+  const changedTextCount = textAnnotations.filter(
+    (a) => !a.isExtracted ? a.text.trim().length > 0 : a.text !== a.originalText,
+  ).length;
+  const hasChanges = changedTextCount > 0 || signatureAnnotations.length > 0;
 
   const modes: { id: EditorMode; label: string; icon: typeof MousePointer2 }[] = [
     { id: 'selection', label: 'Select', icon: MousePointer2 },
-    { id: 'edit', label: 'Edit Text', icon: PenTool },
+    { id: 'edit', label: 'Edit PDF', icon: PenTool },
     { id: 'signature', label: 'Signature', icon: Stamp },
+    { id: 'textbox', label: 'Text', icon: Type },
   ];
 
   return (
@@ -821,9 +1004,9 @@ export default function AnnotatePdfModal({ isOpen, onClose }: AnnotatePdfModalPr
             {/* Apply */}
             <button
               onClick={handleApplyChanges}
-              disabled={applying || !hasAnnotations}
+              disabled={applying || !hasChanges || extractingText}
               className={`flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold text-white transition-all active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50 ${
-                hasAnnotations
+                hasChanges
                   ? 'bg-[#007AFF] hover:bg-[#0062CC]'
                   : 'bg-slate-300'
               }`}
@@ -852,7 +1035,6 @@ export default function AnnotatePdfModal({ isOpen, onClose }: AnnotatePdfModalPr
 
         {/* ── Main Content ── */}
         <div className="flex flex-1 overflow-hidden">
-          {/* ── Signature Sidebar (only in signature mode) ── */}
           {mode === 'signature' && (
             <div className="flex w-64 flex-shrink-0 flex-col border-r border-slate-200/80 bg-white">
               <div className="border-b border-slate-100 px-4 py-3">
@@ -947,16 +1129,30 @@ export default function AnnotatePdfModal({ isOpen, onClose }: AnnotatePdfModalPr
           {/* ── PDF Viewport ── */}
           <div
             ref={scrollContainerRef}
-            className="flex-1 overflow-auto bg-slate-100/60"
+            className="relative flex-1 overflow-auto bg-slate-100/60"
             style={{
               cursor:
-                mode === 'edit'
-                  ? 'text'
-                  : mode === 'signature' && draggingSignature
-                    ? 'copy'
-                    : 'default',
+                extractingText
+                  ? 'wait'
+                  : mode === 'edit'
+                    ? 'text'
+                    : mode === 'textbox'
+                      ? 'crosshair'
+                    : mode === 'signature' && draggingSignature
+                      ? 'copy'
+                      : 'default',
             }}
           >
+            {extractingText && (
+              <div className="absolute inset-0 z-30 flex items-center justify-center bg-white/60 backdrop-blur-[1px]">
+                <div className="flex items-center gap-3 rounded-xl bg-white px-5 py-3 shadow-lg border border-slate-200">
+                  <Loader2 className="h-5 w-5 animate-spin text-[#007AFF]" />
+                  <span className="text-sm font-medium text-slate-600">
+                    Detecting editable text…
+                  </span>
+                </div>
+              </div>
+            )}
             <div className="flex flex-col items-center gap-6 p-6">
               {pages.map((pageInfo, pageIndex) => {
                 const w = pageInfo.width * (scale);
@@ -977,10 +1173,15 @@ export default function AnnotatePdfModal({ isOpen, onClose }: AnnotatePdfModalPr
                       className="relative rounded-lg shadow-[0_2px_12px_rgba(0,0,0,0.08)] bg-white"
                       style={{ width: w, height: h }}
                       onClick={(e) => handlePageClick(e, pageIndex)}
+                      onMouseDown={(e) => handleTextboxPointerDown(e, pageIndex)}
                       onDragOver={(e) => {
                         if (mode === 'signature') e.preventDefault();
                       }}
-                      onDrop={(e) => handlePageDrop(e, pageIndex)}
+                      onDrop={(e) => {
+                        if (mode === 'signature') {
+                          handlePageDrop(e, pageIndex);
+                        }
+                      }}
                     >
                       {/* PDF Canvas */}
                       <canvas
@@ -992,25 +1193,68 @@ export default function AnnotatePdfModal({ isOpen, onClose }: AnnotatePdfModalPr
                         }}
                       />
 
-                      {/* ── Text Annotation Overlays ── */}
-                      {textAnnotations
-                        .filter((a) => a.pageIndex === pageIndex)
+                      {/* ── Textbox placement preview ── */}
+                      {textboxDraft?.pageIndex === pageIndex && (
+                        <div
+                          className="pointer-events-none absolute z-20 rounded-md border-2 border-dashed border-[#007AFF] bg-[#007AFF]/10"
+                          style={{
+                            left: pdfPointsToCss(
+                              Math.min(textboxDraft.startX, textboxDraft.currentX),
+                              displayScale,
+                            ),
+                            top: pdfPointsToCss(
+                              Math.min(textboxDraft.startY, textboxDraft.currentY),
+                              displayScale,
+                            ),
+                            width: Math.max(
+                              2,
+                              pdfPointsToCss(
+                                Math.abs(textboxDraft.currentX - textboxDraft.startX),
+                                displayScale,
+                              ),
+                            ),
+                            height: Math.max(
+                              2,
+                              pdfPointsToCss(
+                                Math.abs(textboxDraft.currentY - textboxDraft.startY),
+                                displayScale,
+                              ),
+                            ),
+                          }}
+                        />
+                      )}
+
+                      {/* ── Text Annotation Overlays (Edit mode only) ── */}
+                      {(mode === 'edit' || mode === 'textbox') &&
+                        textAnnotations
+                        .filter((a) =>
+                          a.pageIndex === pageIndex &&
+                          (mode === 'edit' || !a.isExtracted),
+                        )
                         .map((ann) => {
                           const isEditing = editingAnnotation === ann.id;
+                          const isChanged =
+                            !ann.isExtracted || ann.text !== ann.originalText;
+                          const showReplacementOverlay =
+                            !ann.isExtracted || isEditing || isChanged;
                           return (
                             <div
                               key={ann.id}
+                              data-annotation-overlay="true"
                               style={{
                                 position: 'absolute',
-                                left: ann.x * displayScale / RENDER_SCALE,
-                                top: ann.y * displayScale / RENDER_SCALE,
-                                width: ann.width * displayScale / RENDER_SCALE,
-                                minHeight: ann.height * displayScale / RENDER_SCALE,
+                                left: pdfPointsToCss(ann.x, displayScale),
+                                top: pdfPointsToCss(ann.y, displayScale),
+                                width: pdfPointsToCss(ann.width, displayScale),
+                                minHeight: pdfPointsToCss(ann.height, displayScale),
+                                ...(ann.isExtracted
+                                  ? {}
+                                  : { height: pdfPointsToCss(ann.height, displayScale) }),
                               }}
                               className={`group ${
                                 isEditing
                                   ? 'z-20'
-                                  : 'z-10 cursor-pointer'
+                                  : 'z-10 cursor-text'
                               }`}
                             >
                               {isEditing ? (
@@ -1027,95 +1271,137 @@ export default function AnnotatePdfModal({ isOpen, onClose }: AnnotatePdfModalPr
                                         ),
                                       )
                                     }
-                                    onBlur={() => setEditingAnnotation(null)}
+                                    onBlur={() => {
+                                      if (!ann.isExtracted && !ann.text.trim()) {
+                                        setTextAnnotations((prev) =>
+                                          prev.filter((a) => a.id !== ann.id),
+                                        );
+                                      }
+                                      setEditingAnnotation(null);
+                                    }}
                                     onKeyDown={(e) => {
                                       if (e.key === 'Escape') setEditingAnnotation(null);
-                                    }}
-                                    className="w-full min-h-[24px] resize-both rounded border-2 border-[#007AFF] bg-white/90 px-1.5 py-1 text-sm text-slate-800 outline-none backdrop-blur-sm"
-                                    style={{
-                                      fontSize: `${ann.fontSize * displayScale / RENDER_SCALE}px`,
-                                      color: ann.color,
-                                      fontFamily: 'Helvetica, Arial, sans-serif',
-                                    }}
-                                    onClick={(e) => e.stopPropagation()}
-                                  />
-                                  {/* Annotation controls */}
-                                  <div className="absolute -top-8 left-0 flex items-center gap-1 rounded-lg bg-white p-1 shadow-lg border border-slate-200">
-                                    <input
-                                      type="color"
-                                      value={ann.color}
-                                      onChange={(e) =>
-                                        setTextAnnotations((prev) =>
-                                          prev.map((a) =>
-                                            a.id === ann.id
-                                              ? { ...a, color: e.target.value }
-                                              : a,
-                                          ),
-                                        )
-                                      }
-                                      className="h-5 w-5 cursor-pointer rounded border-0"
-                                      title="Text color"
-                                      onClick={(e) => e.stopPropagation()}
-                                    />
-                                    <select
-                                      value={ann.fontSize}
-                                      onChange={(e) =>
-                                        setTextAnnotations((prev) =>
-                                          prev.map((a) =>
-                                            a.id === ann.id
-                                              ? {
-                                                  ...a,
-                                                  fontSize: parseInt(e.target.value),
-                                                }
-                                              : a,
-                                          ),
-                                        )
-                                      }
-                                      className="rounded border border-slate-200 bg-white px-1 py-0.5 text-[10px] font-medium text-slate-600 outline-none"
-                                      onClick={(e) => e.stopPropagation()}
-                                    >
-                                      {[8, 10, 12, 14, 16, 18, 20, 24, 28, 32, 36, 48].map(
-                                        (s) => (
-                                          <option key={s} value={s}>
-                                            {s}pt
-                                          </option>
-                                        ),
-                                      )}
-                                    </select>
-                                    <button
-                                      onClick={(e) => {
-                                        e.stopPropagation();
+                                      if (
+                                        !ann.isExtracted &&
+                                        !ann.text &&
+                                        (e.key === 'Backspace' || e.key === 'Delete')
+                                      ) {
+                                        e.preventDefault();
                                         setTextAnnotations((prev) =>
                                           prev.filter((a) => a.id !== ann.id),
                                         );
                                         setEditingAnnotation(null);
-                                      }}
-                                      className="rounded p-0.5 text-slate-400 hover:bg-red-50 hover:text-red-500 transition-colors"
-                                      title="Delete annotation"
-                                    >
-                                      <Trash2 className="h-3.5 w-3.5" />
-                                    </button>
-                                  </div>
-                                </div>
-                              ) : (
-                                <div
-                                  className="rounded border border-transparent bg-yellow-100/50 px-1.5 py-0.5 transition-all hover:border-[#007AFF]/30 hover:bg-yellow-100/80"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    if (mode === 'edit') setEditingAnnotation(ann.id);
-                                  }}
-                                  style={{
-                                    fontSize: `${ann.fontSize * displayScale / RENDER_SCALE}px`,
-                                    color: ann.color,
-                                    fontFamily: 'Helvetica, Arial, sans-serif',
-                                  }}
-                                >
-                                  {ann.text || (
-                                    <span className="italic text-slate-400 text-xs">
-                                      Click to edit
-                                    </span>
+                                      }
+                                    }}
+                                    className="h-full w-full min-h-[24px] resize-none rounded-md border-2 border-[#007AFF] bg-white px-2 py-1 text-sm text-slate-800 outline-none shadow-sm"
+                                    style={{
+                                      fontSize: `${pdfPointsToCss(ann.fontSize, displayScale)}px`,
+                                      color: ann.color,
+                                      fontFamily: 'Helvetica, Arial, sans-serif',
+                                      lineHeight: 1.2,
+                                    }}
+                                    onClick={(e) => e.stopPropagation()}
+                                  />
+                                  {/* Annotation controls (user-added text only) */}
+                                  {!ann.isExtracted && (
+                                    <div className="absolute -top-8 left-0 flex items-center gap-1 rounded-lg bg-white p-1 shadow-lg border border-slate-200">
+                                      <input
+                                        type="color"
+                                        value={ann.color}
+                                        onChange={(e) =>
+                                          setTextAnnotations((prev) =>
+                                            prev.map((a) =>
+                                              a.id === ann.id
+                                                ? { ...a, color: e.target.value }
+                                                : a,
+                                            ),
+                                          )
+                                        }
+                                        className="h-5 w-5 cursor-pointer rounded border-0"
+                                        title="Text color"
+                                        onClick={(e) => e.stopPropagation()}
+                                      />
+                                      <select
+                                        value={ann.fontSize}
+                                        onChange={(e) =>
+                                          setTextAnnotations((prev) =>
+                                            prev.map((a) =>
+                                              a.id === ann.id
+                                                ? {
+                                                    ...a,
+                                                    fontSize: parseInt(e.target.value),
+                                                  }
+                                                : a,
+                                            ),
+                                          )
+                                        }
+                                        className="rounded border border-slate-200 bg-white px-1 py-0.5 text-[10px] font-medium text-slate-600 outline-none"
+                                        onClick={(e) => e.stopPropagation()}
+                                      >
+                                        {[8, 10, 12, 14, 16, 18, 20, 24, 28, 32, 36, 48].map(
+                                          (s) => (
+                                            <option key={s} value={s}>
+                                              {s}pt
+                                            </option>
+                                          ),
+                                        )}
+                                      </select>
+                                      <button
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          setTextAnnotations((prev) =>
+                                            prev.filter((a) => a.id !== ann.id),
+                                          );
+                                          setEditingAnnotation(null);
+                                        }}
+                                        className="rounded p-0.5 text-slate-400 hover:bg-red-50 hover:text-red-500 transition-colors"
+                                        title="Delete annotation"
+                                      >
+                                        <Trash2 className="h-3.5 w-3.5" />
+                                      </button>
+                                    </div>
                                   )}
                                 </div>
+                              ) : (
+                                <>
+                                  {showReplacementOverlay ? (
+                                    <div
+                                      className={`h-full rounded-md px-2 py-1 transition-all ${
+                                        ann.isExtracted
+                                          ? 'border border-dashed border-[#007AFF]/55 bg-white/95 shadow-sm hover:border-[#007AFF]/75'
+                                          : mode === 'textbox'
+                                            ? 'border border-[#007AFF]/35 bg-[#EEF5FF] shadow-sm hover:border-[#007AFF]/55 hover:bg-white'
+                                            : 'border border-[#007AFF]/25 bg-[#FFF8DB] hover:border-[#007AFF]/40 hover:bg-[#FFF4C2]'
+                                      }`}
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setEditingAnnotation(ann.id);
+                                      }}
+                                      style={{
+                                        fontSize: `${pdfPointsToCss(ann.fontSize, displayScale)}px`,
+                                        color: ann.color,
+                                        fontFamily: 'Helvetica, Arial, sans-serif',
+                                        lineHeight: 1.2,
+                                      }}
+                                    >
+                                      {ann.text || (!ann.isExtracted && (
+                                        <span className="text-xs text-slate-400">
+                                          Insert text here
+                                        </span>
+                                      ))}
+                                    </div>
+                                  ) : (
+                                    <button
+                                      type="button"
+                                      className="h-full w-full rounded-md border border-dashed border-[#007AFF]/50 bg-[#007AFF]/[0.03] transition-all hover:border-[#007AFF]/75 hover:bg-[#007AFF]/[0.06]"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setEditingAnnotation(ann.id);
+                                      }}
+                                      aria-label={`Edit text: ${ann.text}`}
+                                    />
+                                  )}
+                                </>
                               )}
                             </div>
                           );
@@ -1127,12 +1413,13 @@ export default function AnnotatePdfModal({ isOpen, onClose }: AnnotatePdfModalPr
                         .map((sig) => (
                           <div
                             key={sig.id}
+                            data-annotation-overlay="true"
                             style={{
                               position: 'absolute',
-                              left: sig.x * displayScale / RENDER_SCALE,
-                              top: sig.y * displayScale / RENDER_SCALE,
-                              width: sig.width * displayScale / RENDER_SCALE,
-                              height: sig.height * displayScale / RENDER_SCALE,
+                              left: pdfPointsToCss(sig.x, displayScale),
+                              top: pdfPointsToCss(sig.y, displayScale),
+                              width: pdfPointsToCss(sig.width, displayScale),
+                              height: pdfPointsToCss(sig.height, displayScale),
                             }}
                             className={`z-10 ${
                               mode === 'signature'
@@ -1186,18 +1473,26 @@ export default function AnnotatePdfModal({ isOpen, onClose }: AnnotatePdfModalPr
         <div className="flex items-center justify-between border-t border-slate-200/80 bg-white px-5 py-2">
           <div className="flex items-center gap-3 text-xs text-slate-400">
             <span>
-              {textAnnotations.length} text edit{textAnnotations.length !== 1 ? 's' : ''}
+              {changedTextCount} change{changedTextCount !== 1 ? 's' : ''}
             </span>
             <span className="text-slate-200">•</span>
             <span>
               {signatureAnnotations.length} signature
               {signatureAnnotations.length !== 1 ? 's' : ''}
             </span>
+            {mode === 'edit' && textAnnotations.length > 0 && (
+              <>
+                <span className="text-slate-200">•</span>
+                <span>{textAnnotations.length} editable blocks</span>
+              </>
+            )}
           </div>
           <div className="text-xs text-slate-400">
-            {mode === 'edit' && 'Click anywhere on the page to add text'}
-            {mode === 'signature' && 'Drag a signature from the sidebar onto the page'}
-            {mode === 'selection' && 'Scroll to view pages'}
+            {extractingText && 'Detecting text blocks…'}
+            {!extractingText && mode === 'edit' && 'Click existing PDF text to edit or delete'}
+            {!extractingText && mode === 'textbox' && 'Drag on the page to place a text box, then type inside it'}
+            {!extractingText && mode === 'signature' && 'Drag a signature from the sidebar onto the page'}
+            {!extractingText && mode === 'selection' && 'Scroll to view pages'}
           </div>
         </div>
 

@@ -72,7 +72,7 @@ export const TOOL_MODAL_CONFIG: Record<ToolType, ToolModalConfig> = {
   },
   annotate: {
     title: 'Annotate PDF',
-    description: 'Highlight, draw, and add notes to your PDF with ease.',
+    description: 'Edit existing text, add notes, and sign your PDF with ease.',
     icon: PenTool,
     iconBg: 'bg-white',
     iconColor: 'text-[#007AFF]',
