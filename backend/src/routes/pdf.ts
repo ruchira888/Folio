@@ -10,10 +10,17 @@ import { protectPdfService } from '../services/protectPdfService'
 import { darkModeService } from '../services/darkModeService'
 import { watermarkPdfService } from '../services/watermarkService'
 import { exportPdfToMarkdown } from '../services/markdownExportService'
-import { generateThumbnails } from '../services/thumbnailService'
 import { logger } from '../logger'
 import { GoogleTranslator } from '../services/translation/providers/GoogleTranslator'
 import { PdfTranslationService } from '../services/translation/PdfTranslationService'
+
+let generateThumbnails: any = null
+try {
+  const { generateThumbnails: _generateThumbnails } = require('../services/thumbnailService')
+  generateThumbnails = _generateThumbnails
+} catch (err) {
+  logger.warn('Thumbnail generation not available (canvas native module issue)')
+}
 
 const googleTranslator = new GoogleTranslator()
 const pdfTranslationService = new PdfTranslationService(googleTranslator)
@@ -305,6 +312,11 @@ pdfRouter.post(
       const record = storage.getRecord(fileId)
       if (!record) {
         res.status(404).json({ success: false, error: 'File not found or expired' })
+        return
+      }
+
+      if (!generateThumbnails) {
+        res.status(503).json({ success: false, error: 'Thumbnail generation is not available in this environment' })
         return
       }
 
