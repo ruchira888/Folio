@@ -1,9 +1,19 @@
 import { ChevronDown } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import { motion } from 'framer-motion';
 
 export default function Navbar() {
   return (
-    <nav className="w-full max-w-6xl mx-auto mt-4 px-2">
+    <motion.nav 
+      initial={{ opacity: 0, y: -20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ 
+        delay: 0.2, 
+        duration: 0.8, 
+        ease: [0.22, 1, 0.36, 1] 
+      }}
+      className="w-full max-w-6xl mx-auto mt-4 px-2"
+    >
       <div className="bg-white/90 backdrop-blur-md rounded-full shadow-[0_2px_20px_-4px_rgba(0,0,0,0.06)] border border-white/60 px-5 md:px-8 py-3 flex items-center justify-between">
         {/* Logo */}
         <Link to="/" className="flex items-center cursor-pointer select-none no-underline">
@@ -20,7 +30,6 @@ export default function Navbar() {
             Tools <ChevronDown className="w-3.5 h-3.5 opacity-60" />
           </Link>
           <a href="#FAQ" className="hover:text-slate-800 transition-colors">FAQ</a>
-         
           <a href="#about" className="hover:text-slate-800 transition-colors">About</a>
         </div>
 
@@ -34,6 +43,6 @@ export default function Navbar() {
           </button>
         </div>
       </div>
-    </nav>
+    </motion.nav>
   );
 }

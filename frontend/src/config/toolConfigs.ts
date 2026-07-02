@@ -228,7 +228,7 @@ export const TOOL_MODAL_CONFIG: Record<ToolType, ToolModalConfig> = {
   },
   'page-numbers': {
     title: 'Add Page Numbers',
-    description: 'Add page numbers in the format and position you choose.',
+    description: 'Add bottom-center page numbers to every page of your PDF.',
     icon: FileText,
     iconBg: 'bg-white',
     iconColor: 'text-[#4F46E5]',

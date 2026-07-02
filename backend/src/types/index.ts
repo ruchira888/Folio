@@ -82,6 +82,15 @@ export type WatermarkPdfResult = {
   fileKey: string
 }
 
+export type PageNumbersRequestBody = {
+  fileId: string
+}
+
+export type PageNumbersResult = {
+  fileUrl: string
+  fileKey: string
+}
+
 export type TranslatePdfRequestBody = {
   fileId: string
   targetLanguage: string

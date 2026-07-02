@@ -3,12 +3,13 @@ import rateLimit,{ipKeyGenerator} from 'express-rate-limit'
 import { PDFDocument as PdfLibDocument, rgb } from 'pdf-lib'
 import pdfParse from 'pdf-parse'
 import { storage } from '../index'
-import { AnnotateRequestBody, ApiResponse, DarkModeRequestBody, DeletePagesRequestBody, MarkdownExportRequestBody, ProtectPdfRequestBody, WatermarkPdfRequestBody, TranslatePdfRequestBody, TranslatePdfResult } from '../types'
+import { AnnotateRequestBody, ApiResponse, DarkModeRequestBody, DeletePagesRequestBody, MarkdownExportRequestBody, PageNumbersRequestBody, ProtectPdfRequestBody, WatermarkPdfRequestBody, TranslatePdfRequestBody, TranslatePdfResult } from '../types'
 import { summarizePdf } from '../services/summaryService'
 import { deletePagesService } from '../services/deletePagesService'
 import { protectPdfService } from '../services/protectPdfService'
 import { darkModeService } from '../services/darkModeService'
 import { watermarkPdfService } from '../services/watermarkService'
+import { addPageNumbersService } from '../services/pageNumberService'
 import { exportPdfToMarkdown } from '../services/markdownExportService'
 import { generateThumbnails } from '../services/thumbnailService'
 import { logger } from '../logger'
@@ -397,6 +398,39 @@ pdfRouter.post(
         })
         return
       }
+      next(err)
+    }
+  }
+)
+
+// ─── PAGE NUMBERS ───────────────────────────────────────────────────────────
+
+pdfRouter.post(
+  '/page-numbers',
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { fileId }: PageNumbersRequestBody = req.body
+
+      if (!fileId) {
+        res.status(400).json({ success: false, error: 'Missing fileId' })
+        return
+      }
+
+      const record = storage.getRecord(fileId)
+      if (!record) {
+        res.status(404).json({ success: false, error: 'File not found or expired' })
+        return
+      }
+
+      const result = await addPageNumbersService(fileId)
+
+      logger.info(`Page numbering complete for: ${fileId}`)
+
+      res.json({
+        success: true,
+        data: result
+      } as ApiResponse<{ fileUrl: string; fileKey: string }>)
+    } catch (err) {
       next(err)
     }
   }

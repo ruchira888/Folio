@@ -288,6 +288,31 @@ export interface WatermarkPdfOptions {
 }
 
 /**
+ * Add page numbers to the bottom center of every page in a PDF.
+ */
+export async function addPageNumbers(fileId: string): Promise<PdfFileResult> {
+  const response = await fetch(`${API_BASE_URL}/api/pdf/page-numbers`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ fileId }),
+  })
+
+  if (!response.ok) {
+    const error = await response.json()
+    throw new Error(error.error || 'Failed to add page numbers to PDF')
+  }
+
+  const data: ApiResponse<PdfFileResult> = await response.json()
+  if (!data.success || !data.data) {
+    throw new Error('Invalid response from server')
+  }
+
+  return data.data
+}
+
+/**
  * Add a custom text watermark to every page of a PDF.
  */
 export async function watermarkPdf(

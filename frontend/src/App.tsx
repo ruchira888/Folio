@@ -9,6 +9,7 @@ import ProtectPdfModal from './components/ProtectPdfModal';
 import DarkModePdfModal from './components/DarkModePdfModal';
 import ConvertToMarkdownModal from './components/ConvertToMarkdownModal';
 import WatermarkPdfModal from './components/WatermarkPdfModal';
+import PageNumbersModal from './components/PageNumbersModal';
 import TranslatePdfModal from './components/TranslatePdfModal';
 import AnnotatePdfModal from './components/AnnotatePdfModal';
 import { useState } from 'react';
@@ -90,6 +91,11 @@ function App() {
           onClose={closeModal}
         />
 
+        <PageNumbersModal
+          isOpen={activeTool === 'page-numbers'}
+          onClose={closeModal}
+        />
+
         <TranslatePdfModal
           isOpen={activeTool === 'translate'}
           onClose={closeModal}
@@ -100,10 +106,10 @@ function App() {
           onClose={closeModal}
         />
 
-        {activeTool && !['summarize', 'delete-pages', 'protect', 'dark-mode', 'convert', 'watermark', 'translate', 'annotate'].includes(activeTool) && isModalTool(activeTool) && (
+        {activeTool && !['summarize', 'delete-pages', 'protect', 'dark-mode', 'convert', 'watermark', 'page-numbers', 'translate', 'annotate'].includes(activeTool) && isModalTool(activeTool) && (
           <GenericToolModal
             isOpen
-            toolType={activeTool}
+            toolType={activeTool as Exclude<ToolType, 'summarize'>}
             onClose={closeModal}
           />
         )}
