@@ -371,40 +371,10 @@ export async function darkModeService(fileId: string): Promise<DarkModeResult> {
   const buffer = await storage.getBuffer(fileId)
   const data = new Uint8Array(buffer)
 
-  // Quick text detection via pdfjs
-  let hasText = false
-  let sourceJsPdf: any | null = null
-  try {
-    const loadingTask = pdfjs.getDocument({
-      data,
-      disableWorker: true,
-      useSystemFonts: true,
-      disableFontFace: true,
-      standardFontDataUrl,
-    } as any)
-    sourceJsPdf = await loadingTask.promise
-
-    for (let i = 1; i <= sourceJsPdf.numPages; i++) {
-      const page = await sourceJsPdf.getPage(i)
-      const pageType = await detectPageType(page)
-      if (pageType === 'text') {
-        hasText = true
-        break
-      }
-      page.cleanup()
-    }
-    sourceJsPdf.destroy()
-  } catch (e: any) {
-    logger.warn(`pdfjs text detection failed for ${fileId}: ${e?.message}`)
-    if (sourceJsPdf) {
-      try { sourceJsPdf.destroy() } catch {}
-    }
-  }
-
-  if (!hasText) {
-    throw new Error('UNSUPPORTED_SCANNED_PDF')
-  }
-
+  // Load the PDF once. pdfjs transfers (and detaches) the underlying
+  // ArrayBuffer of `data` while loading, so the same buffer must not be handed
+  // to a second getDocument call — doing so throws while cloning the detached
+  // buffer.
   const loadingTask = pdfjs.getDocument({
     data,
     disableWorker: true,
@@ -413,6 +383,27 @@ export async function darkModeService(fileId: string): Promise<DarkModeResult> {
     standardFontDataUrl,
   } as any)
   const sourcePdf = await loadingTask.promise
+
+  // Quick text detection: scanned/image-only PDFs cannot be recolored into a
+  // readable dark theme, so require at least one page with extractable text.
+  let hasText = false
+  try {
+    for (let i = 1; i <= sourcePdf.numPages; i++) {
+      const page = await sourcePdf.getPage(i)
+      const pageType = await detectPageType(page)
+      if (pageType === 'text') {
+        hasText = true
+        break
+      }
+    }
+  } catch (e: any) {
+    logger.warn(`pdfjs text detection failed for ${fileId}: ${e?.message}`)
+  }
+
+  if (!hasText) {
+    sourcePdf.destroy()
+    throw new Error('UNSUPPORTED_SCANNED_PDF')
+  }
 
   const outputPdf = await PdfLibDocument.create()
   const textFont = await outputPdf.embedFont(StandardFonts.Helvetica)
