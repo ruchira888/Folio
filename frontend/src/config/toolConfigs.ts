@@ -22,7 +22,9 @@ export type ToolType =
   | 'convert'
   | 'delete-pages'
   | 'compress'
-  | 'watermark';
+  | 'watermark'
+  | 'page-numbers'
+  | 'convert-pdf';
 
 export interface ToolModalConfig {
   title: string;
@@ -224,6 +226,50 @@ export const TOOL_MODAL_CONFIG: Record<ToolType, ToolModalConfig> = {
     tagBg: 'bg-[#FFDAB8]',
     tagColor: 'text-[#F97316]',
   },
+  'page-numbers': {
+    title: 'Add Page Numbers',
+    description: 'Add page numbers in the format and position you choose.',
+    icon: FileText,
+    iconBg: 'bg-white',
+    iconColor: 'text-[#4F46E5]',
+    buttonText: 'Select PDF File',
+    dropHint: 'or drag & drop PDF here',
+    accept: 'application/pdf,.pdf',
+    multiple: false,
+    maxFiles: 1,
+    maxSizeMb: 20,
+    accentButton: 'bg-[#4F46E5]',
+    accentButtonHover: 'hover:bg-[#4338CA]',
+    dropzoneBorder: 'border-[#EEF2FF]',
+    dropzoneBg: 'bg-[#F5F7FF]',
+    formatsLabel: 'PDF',
+    cardBg: 'bg-[#EEF2FF]',
+    cardBorder: 'border-[#E0E7FF]',
+    tagBg: 'bg-[#E0E7FF]',
+    tagColor: 'text-[#4F46E5]',
+  },
+  'convert-pdf': {
+    title: 'Convert PDF',
+    description: 'Convert your PDF to Word, Excel, PPT, JPG and more.',
+    icon: FileText,
+    iconBg: 'bg-white',
+    iconColor: 'text-[#0D9488]',
+    buttonText: 'Select PDF File',
+    dropHint: 'or drag & drop PDF here',
+    accept: 'application/pdf,.pdf',
+    multiple: false,
+    maxFiles: 1,
+    maxSizeMb: 20,
+    accentButton: 'bg-[#0D9488]',
+    accentButtonHover: 'hover:bg-[#0F766E]',
+    dropzoneBorder: 'border-[#F0FDFA]',
+    dropzoneBg: 'bg-[#F5FFFE]',
+    formatsLabel: 'PDF',
+    cardBg: 'bg-[#F0FDFA]',
+    cardBorder: 'border-[#CCFBF1]',
+    tagBg: 'bg-[#CCFBF1]',
+    tagColor: 'text-[#0D9488]',
+  },
   compress: {
     title: 'Compress PDF',
     description: 'Reduce PDF file size without losing quality.',
@@ -281,6 +327,8 @@ export const MODAL_TOOL_IDS: ToolType[] = [
   'delete-pages',
   'compress',
   'watermark',
+  'page-numbers',
+  'convert-pdf',
 ];
 
 export function isModalTool(id: string): id is ToolType {
