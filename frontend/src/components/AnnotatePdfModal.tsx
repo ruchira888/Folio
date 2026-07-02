@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+﻿import { useState, useEffect, useRef, useCallback } from 'react';
 import {
   X, Download, MousePointer2, PenTool, Stamp, Plus, Trash2,
   Loader2, Type, Upload, Pen,
@@ -18,7 +18,7 @@ pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
 ).href;
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
-type EditorMode = 'selection' | 'edit' | 'textbox' | 'signature';
+type EditorMode = 'selection' | 'edit' | 'textbox' | 'signature' | 'highlight';
 
 interface TextAnnotation {
   id: string;
@@ -50,6 +50,19 @@ interface TextAnnotation {
   originalText?: string;
   /** Baseline Y in PDF coords (origin bottom-left) */
   pdfBaselineY?: number;
+}
+
+type MarkupKind = 'highlight' | 'underline';
+
+interface MarkupAnnotation {
+  id: string;
+  pageIndex: number;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  kind: MarkupKind;
+  color: string; // hex
 }
 
 interface SignatureAnnotation {
@@ -554,7 +567,9 @@ export default function AnnotatePdfModal({ isOpen, onClose }: AnnotatePdfModalPr
   const [scale, setScale] = useState(1.0);
   const [textAnnotations, setTextAnnotations] = useState<TextAnnotation[]>([]);
   const [signatureAnnotations, setSignatureAnnotations] = useState<SignatureAnnotation[]>([]);
+  const [markupAnnotations, setMarkupAnnotations] = useState<MarkupAnnotation[]>([]);
   const [editingAnnotation, setEditingAnnotation] = useState<string | null>(null);
+  const [highlightTargetId, setHighlightTargetId] = useState<string | null>(null);
   const [applying, setApplying] = useState(false);
   const [extractingText, setExtractingText] = useState(false);
   const [editSessionActive, setEditSessionActive] = useState(false);
@@ -658,15 +673,14 @@ export default function AnnotatePdfModal({ isOpen, onClose }: AnnotatePdfModalPr
       const pdfPages = doc.getPages();
       const displayScale = RENDER_SCALE * scale;
 
+      // Cover old text first
       for (const ann of extractedEdits) {
         if (!ann.isExtracted) continue;
         if (ann.text === ann.originalText) continue;
 
         const page = pdfPages[ann.pageIndex];
         if (!page) continue;
-
         const pageHeight = page.getHeight();
-        const hasReplacementText = ann.text.trim().length > 0;
 
         const canvas = canvasRefs.current[ann.pageIndex];
         const sampledCover =
@@ -680,8 +694,6 @@ export default function AnnotatePdfModal({ isOpen, onClose }: AnnotatePdfModalPr
             : null;
         const coverHex = ann.coverColor ?? sampledCover ?? '#ffffff';
 
-        // Pad the cover rectangle so we reliably hide the original glyphs.
-        // (Tight boxes can leave parts of the original text visible -> "overlay" effect)
         const padX = clamp(ann.fontSize * 0.18, 0.5, 4);
         const padTop = clamp(ann.fontSize * 0.18, 0.5, 4);
         const padBottom = clamp(ann.fontSize * 0.32, 1, 6);
@@ -693,8 +705,45 @@ export default function AnnotatePdfModal({ isOpen, onClose }: AnnotatePdfModalPr
           height: ann.height + padTop + padBottom,
           color: hexToPdfRgb(coverHex),
         });
+      }
 
+      // Apply highlight / underline marks
+      for (const mark of markupAnnotations) {
+        const page = pdfPages[mark.pageIndex];
+        if (!page) continue;
+        const pageHeight = page.getHeight();
+
+        if (mark.kind === 'highlight') {
+          page.drawRectangle({
+            x: mark.x,
+            y: pageHeight - mark.y - mark.height,
+            width: mark.width,
+            height: mark.height,
+            color: hexToPdfRgb(mark.color),
+            opacity: 0.3,
+          } as any);
+        } else {
+          const underlineY = pageHeight - mark.y - mark.height + 1;
+          page.drawLine({
+            start: { x: mark.x, y: underlineY },
+            end: { x: mark.x + mark.width, y: underlineY },
+            thickness: 1.5,
+            color: hexToPdfRgb(mark.color),
+            opacity: 1,
+          } as any);
+        }
+      }
+
+      // Draw replacement text last (on top)
+      for (const ann of extractedEdits) {
+        if (!ann.isExtracted) continue;
+        if (ann.text === ann.originalText) continue;
+        const hasReplacementText = ann.text.trim().length > 0;
         if (!hasReplacementText) continue;
+
+        const page = pdfPages[ann.pageIndex];
+        if (!page) continue;
+        const pageHeight = page.getHeight();
 
         const textY =
           ann.pdfBaselineY !== undefined
@@ -715,7 +764,7 @@ export default function AnnotatePdfModal({ isOpen, onClose }: AnnotatePdfModalPr
       new Uint8Array(pdfBuffer).set(modifiedBytes);
       return pdfBuffer;
     },
-    [scale],
+    [scale, markupAnnotations],
   );
 
   const handleDiscardEditSession = () => {
@@ -863,6 +912,11 @@ export default function AnnotatePdfModal({ isOpen, onClose }: AnnotatePdfModalPr
   // ── Handle click on page (Edit Mode) ──
   const handlePageClick = useCallback(
     (e: React.MouseEvent, pageIndex: number) => {
+      if (mode === 'highlight') {
+        // Click on empty space closes the highlight menu
+        setHighlightTargetId(null);
+        return;
+      }
       if (mode !== 'edit' || extractingText) return;
 
       // Check if clicking on an existing annotation
@@ -1116,52 +1170,79 @@ export default function AnnotatePdfModal({ isOpen, onClose }: AnnotatePdfModalPr
       const helveticaFont = await doc.embedFont(StandardFonts.Helvetica);
       const pdfPages = doc.getPages();
 
-      // Apply text annotations
+      // 1) Cover original text for extracted edits (so we don't see overlay)
+      for (const ann of textAnnotations) {
+        if (!ann.isExtracted) continue;
+        if (ann.text === ann.originalText) continue;
+
+        const page = pdfPages[ann.pageIndex];
+        if (!page) continue;
+        const pageHeight = page.getHeight();
+
+        const displayScale = RENDER_SCALE * scale;
+        const canvas = canvasRefs.current[ann.pageIndex];
+        const sampledCover =
+          canvas
+            ? sampleDominantHexColorFromCanvas(canvas, {
+                x: ann.x * displayScale,
+                y: ann.y * displayScale,
+                width: ann.width * displayScale,
+                height: ann.height * displayScale,
+              })
+            : null;
+        const coverHex = ann.coverColor ?? sampledCover ?? '#ffffff';
+
+        const padX = clamp(ann.fontSize * 0.18, 0.5, 4);
+        const padTop = clamp(ann.fontSize * 0.18, 0.5, 4);
+        const padBottom = clamp(ann.fontSize * 0.32, 1, 6);
+
+        page.drawRectangle({
+          x: ann.x - padX,
+          y: pageHeight - (ann.y + ann.height + padBottom),
+          width: ann.width + padX * 2,
+          height: ann.height + padTop + padBottom,
+          color: hexToPdfRgb(coverHex),
+        });
+      }
+
+      // 2) Apply highlight / underline marks (behind text)
+      for (const mark of markupAnnotations) {
+        const page = pdfPages[mark.pageIndex];
+        if (!page) continue;
+        const pageHeight = page.getHeight();
+
+        if (mark.kind === 'highlight') {
+          page.drawRectangle({
+            x: mark.x,
+            y: pageHeight - mark.y - mark.height,
+            width: mark.width,
+            height: mark.height,
+            color: hexToPdfRgb(mark.color),
+            opacity: 0.3,
+          } as any);
+        } else {
+          const underlineY = pageHeight - mark.y - mark.height + 1;
+          page.drawLine({
+            start: { x: mark.x, y: underlineY },
+            end: { x: mark.x + mark.width, y: underlineY },
+            thickness: 1.5,
+            color: hexToPdfRgb(mark.color),
+            opacity: 1,
+          } as any);
+        }
+      }
+
+      // 3) Draw replacement / inserted text on top
       for (const ann of textAnnotations) {
         const hasReplacementText = ann.text.trim().length > 0;
         if (!ann.isExtracted && !hasReplacementText) continue;
         if (ann.isExtracted && ann.text === ann.originalText) continue;
+        if (!hasReplacementText) continue;
 
         const page = pdfPages[ann.pageIndex];
         if (!page) continue;
-
         const pageHeight = page.getHeight();
 
-        // Only cover for extracted text edits (to hide original text).
-        // For user-added textboxes we should not cover the background.
-        if (ann.isExtracted) {
-          const displayScale = RENDER_SCALE * scale;
-          const canvas = canvasRefs.current[ann.pageIndex];
-          const sampledCover =
-            canvas
-              ? sampleDominantHexColorFromCanvas(canvas, {
-                  x: ann.x * displayScale,
-                  y: ann.y * displayScale,
-                  width: ann.width * displayScale,
-                  height: ann.height * displayScale,
-                })
-              : null;
-          const coverHex = ann.coverColor ?? sampledCover ?? '#ffffff';
-
-          // Pad cover rectangle to fully hide original glyphs (prevents overlay artifacts)
-          const padX = clamp(ann.fontSize * 0.18, 0.5, 4);
-          const padTop = clamp(ann.fontSize * 0.18, 0.5, 4);
-          const padBottom = clamp(ann.fontSize * 0.32, 1, 6);
-
-          page.drawRectangle({
-            x: ann.x - padX,
-            y: pageHeight - (ann.y + ann.height + padBottom),
-            width: ann.width + padX * 2,
-            height: ann.height + padTop + padBottom,
-            color: hexToPdfRgb(coverHex),
-          });
-        }
-
-        if (!hasReplacementText) {
-          continue;
-        }
-
-        // Draw replacement text
         const textY =
           ann.pdfBaselineY !== undefined
             ? ann.pdfBaselineY
@@ -1241,7 +1322,9 @@ export default function AnnotatePdfModal({ isOpen, onClose }: AnnotatePdfModalPr
     setScale(1.0);
     setTextAnnotations([]);
     setSignatureAnnotations([]);
+    setMarkupAnnotations([]);
     setEditingAnnotation(null);
+    setHighlightTargetId(null);
     setTextboxDraft(null);
     setExtractingText(false);
     setEditSessionActive(false);
@@ -1284,13 +1367,15 @@ export default function AnnotatePdfModal({ isOpen, onClose }: AnnotatePdfModalPr
   const changedTextCount = textAnnotations.filter(
     (a) => !a.isExtracted ? a.text.trim().length > 0 : a.text !== a.originalText,
   ).length;
-  const hasChanges = changedTextCount > 0 || signatureAnnotations.length > 0;
+  const hasChanges =
+    changedTextCount > 0 || signatureAnnotations.length > 0 || markupAnnotations.length > 0;
 
   const modes: { id: EditorMode; label: string; icon: typeof MousePointer2 }[] = [
     { id: 'selection', label: 'Select', icon: MousePointer2 },
     { id: 'edit', label: 'Edit PDF', icon: PenTool },
     { id: 'signature', label: 'Signature', icon: Stamp },
     { id: 'textbox', label: 'Text', icon: Type },
+    { id: 'highlight', label: 'Highlight', icon: Pen },
   ];
 
   return (
@@ -1336,6 +1421,7 @@ export default function AnnotatePdfModal({ isOpen, onClose }: AnnotatePdfModalPr
                   if (m.id === 'edit') setEditSessionActive(true);
                   setMode(m.id);
                   setEditingAnnotation(null);
+                  setHighlightTargetId(null);
                 }}
                 className={`flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-semibold transition-all ${
                   mode === m.id
@@ -1616,19 +1702,55 @@ export default function AnnotatePdfModal({ isOpen, onClose }: AnnotatePdfModalPr
                         />
                       )}
 
-                      {/* ── Text Annotation Overlays (Edit mode only) ── */}
-                      {(mode === 'edit' || mode === 'textbox') &&
+                      {/* ── Highlight / underline overlays ── */}
+                      {markupAnnotations
+                        .filter((m) => m.pageIndex === pageIndex)
+                        .map((m) => (
+                          <div
+                            key={m.id}
+                            className="pointer-events-none absolute z-[5]"
+                            style={{
+                              left: pdfPointsToCss(m.x, displayScale),
+                              top: pdfPointsToCss(m.y, displayScale),
+                              width: pdfPointsToCss(m.width, displayScale),
+                              height: pdfPointsToCss(m.height, displayScale),
+                            }}
+                          >
+                            {m.kind === 'highlight' ? (
+                              <div
+                                className="h-full w-full rounded-[2px]"
+                                style={{ background: m.color, opacity: 0.28 }}
+                              />
+                            ) : (
+                              <div
+                                className="absolute left-0 right-0"
+                                style={{
+                                  bottom: 1,
+                                  height: 2,
+                                  background: m.color,
+                                  opacity: 0.9,
+                                }}
+                              />
+                            )}
+                          </div>
+                        ))}
+
+                      {/* ── Text Annotation Overlays ── */}
+                      {(mode === 'edit' || mode === 'textbox' || mode === 'highlight') &&
                         textAnnotations
-                        .filter((a) =>
-                          a.pageIndex === pageIndex &&
-                          (mode === 'edit' || !a.isExtracted),
-                        )
+                        .filter((a) => {
+                          if (a.pageIndex !== pageIndex) return false;
+                          if (mode === 'textbox') return !a.isExtracted;
+                          if (mode === 'highlight') return !!a.isExtracted;
+                          return true; // edit mode
+                        })
                         .map((ann) => {
                           const isEditing = editingAnnotation === ann.id;
                           const isChanged =
                             !ann.isExtracted || ann.text !== ann.originalText;
                           const showReplacementOverlay =
                             !ann.isExtracted || isEditing || isChanged;
+                          const isHighlightTarget = highlightTargetId === ann.id;
                           return (
                             <div
                               key={ann.id}
@@ -1644,115 +1766,225 @@ export default function AnnotatePdfModal({ isOpen, onClose }: AnnotatePdfModalPr
                                   : { height: pdfPointsToCss(ann.height, displayScale) }),
                               }}
                               className={`group ${
-                                isEditing
-                                  ? 'z-20'
-                                  : 'z-10 cursor-text'
-                              }`}
+                                isEditing || (mode === 'highlight' && isHighlightTarget)
+                                  ? 'z-30'
+                                  : 'z-10'
+                              } ${mode === 'highlight' ? 'cursor-pointer' : (isEditing ? '' : 'cursor-text')}`}
                             >
-                              {isEditing ? (
-                                <div className="relative">
-                                  <textarea
-                                    autoFocus
-                                    value={ann.text}
-                                    onChange={(e) =>
-                                      setTextAnnotations((prev) =>
-                                        prev.map((a) =>
-                                          a.id === ann.id
-                                            ? { ...a, text: e.target.value }
-                                            : a,
-                                        ),
-                                      )
-                                    }
-                                    onBlur={() => {
-                                      if (!ann.isExtracted && !ann.text.trim()) {
-                                        setTextAnnotations((prev) =>
-                                          prev.filter((a) => a.id !== ann.id),
-                                        );
-                                      }
-                                      setEditingAnnotation(null);
+                              {mode === 'highlight' ? (
+                                <>
+                                  <button
+                                    type="button"
+                                    className="relative h-full w-full bg-transparent text-left"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setHighlightTargetId((prev) => (prev === ann.id ? null : ann.id));
                                     }}
-                                    onKeyDown={(e) => {
-                                      if (e.key === 'Escape') setEditingAnnotation(null);
-                                      if (
-                                        !ann.isExtracted &&
-                                        !ann.text &&
-                                        (e.key === 'Backspace' || e.key === 'Delete')
-                                      ) {
-                                        e.preventDefault();
-                                        setTextAnnotations((prev) =>
-                                          prev.filter((a) => a.id !== ann.id),
-                                        );
-                                        setEditingAnnotation(null);
-                                      }
-                                    }}
-                                    className="h-full w-full min-h-[24px] resize-none rounded-md border-2 border-[#007AFF] bg-white px-2 py-1 text-sm text-slate-800 outline-none shadow-sm"
-                                    style={{
-                                      fontSize: `${pdfPointsToCss(ann.fontSize, displayScale)}px`,
-                                      color: ann.color,
-                                      fontFamily: 'Helvetica, Arial, sans-serif',
-                                      lineHeight: 1.2,
-                                    }}
-                                    onClick={(e) => e.stopPropagation()}
-                                  />
-                                  {/* Annotation controls (user-added text only) */}
-                                  {!ann.isExtracted && (
-                                    <div className="absolute -top-8 left-0 flex items-center gap-1 rounded-lg bg-white p-1 shadow-lg border border-slate-200">
-                                      <input
-                                        type="color"
-                                        value={ann.color}
-                                        onChange={(e) =>
-                                          setTextAnnotations((prev) =>
-                                            prev.map((a) =>
-                                              a.id === ann.id
-                                                ? { ...a, color: e.target.value }
-                                                : a,
-                                            ),
-                                          )
-                                        }
-                                        className="h-5 w-5 cursor-pointer rounded border-0"
-                                        title="Text color"
-                                        onClick={(e) => e.stopPropagation()}
-                                      />
-                                      <select
-                                        value={ann.fontSize}
-                                        onChange={(e) =>
-                                          setTextAnnotations((prev) =>
-                                            prev.map((a) =>
-                                              a.id === ann.id
-                                                ? {
-                                                    ...a,
-                                                    fontSize: parseInt(e.target.value),
-                                                  }
-                                                : a,
-                                            ),
-                                          )
-                                        }
-                                        className="rounded border border-slate-200 bg-white px-1 py-0.5 text-[10px] font-medium text-slate-600 outline-none"
-                                        onClick={(e) => e.stopPropagation()}
-                                      >
-                                        {[8, 10, 12, 14, 16, 18, 20, 24, 28, 32, 36, 48].map(
-                                          (s) => (
-                                            <option key={s} value={s}>
-                                              {s}pt
-                                            </option>
-                                          ),
-                                        )}
-                                      </select>
+                                    aria-label={`Select text: ${ann.text}`}
+                                  >
+                                    <span
+                                      className={`pointer-events-none absolute inset-0 rounded-sm border ${
+                                        isHighlightTarget
+                                          ? 'border-[#007AFF]'
+                                          : 'border-transparent group-hover:border-[#007AFF]/60'
+                                      }`}
+                                    />
+                                  </button>
+
+                                  {isHighlightTarget && (
+                                    <div className="absolute -top-10 left-0 z-40 flex items-center gap-1 rounded-lg border border-slate-200 bg-white p-1 shadow-lg">
                                       <button
-                                        onClick={(e) => {
+                                        className="rounded px-2 py-1 text-[11px] font-semibold text-slate-700 hover:bg-slate-50"
+                                        onClick={async (e) => {
                                           e.stopPropagation();
-                                          setTextAnnotations((prev) =>
-                                            prev.filter((a) => a.id !== ann.id),
-                                          );
-                                          setEditingAnnotation(null);
+                                          try {
+                                            await navigator.clipboard.writeText(ann.text);
+                                          } catch {
+                                            // ignore
+                                          }
+                                          setHighlightTargetId(null);
                                         }}
-                                        className="rounded p-0.5 text-slate-400 hover:bg-red-50 hover:text-red-500 transition-colors"
-                                        title="Delete annotation"
                                       >
-                                        <Trash2 className="h-3.5 w-3.5" />
+                                        Copy
                                       </button>
+
+                                      <select
+                                        className="rounded border border-slate-200 bg-white px-1.5 py-1 text-[11px] font-semibold text-slate-700 outline-none"
+                                        defaultValue=""
+                                        onClick={(e) => e.stopPropagation()}
+                                        onChange={(e) => {
+                                          const color = e.target.value;
+                                          if (!color) return;
+                                          setMarkupAnnotations((prev) => [
+                                            ...prev,
+                                            {
+                                              id: generateId(),
+                                              pageIndex: ann.pageIndex,
+                                              x: ann.x,
+                                              y: ann.y,
+                                              width: ann.width,
+                                              height: ann.height,
+                                              kind: 'highlight',
+                                              color,
+                                            },
+                                          ]);
+                                          setHighlightTargetId(null);
+                                        }}
+                                      >
+                                        <option value="">Highlight</option>
+                                        <option value="#FDE047">Yellow</option>
+                                        <option value="#86EFAC">Green</option>
+                                        <option value="#93C5FD">Blue</option>
+                                        <option value="#FBCFE8">Pink</option>
+                                      </select>
+
+                                      <select
+                                        className="rounded border border-slate-200 bg-white px-1.5 py-1 text-[11px] font-semibold text-slate-700 outline-none"
+                                        defaultValue=""
+                                        onClick={(e) => e.stopPropagation()}
+                                        onChange={(e) => {
+                                          const color = e.target.value;
+                                          if (!color) return;
+                                          setMarkupAnnotations((prev) => [
+                                            ...prev,
+                                            {
+                                              id: generateId(),
+                                              pageIndex: ann.pageIndex,
+                                              x: ann.x,
+                                              y: ann.y,
+                                              width: ann.width,
+                                              height: ann.height,
+                                              kind: 'underline',
+                                              color,
+                                            },
+                                          ]);
+                                          setHighlightTargetId(null);
+                                        }}
+                                      >
+                                        <option value="">Underline</option>
+                                        <option value="#F97316">Orange</option>
+                                        <option value="#22C55E">Green</option>
+                                        <option value="#3B82F6">Blue</option>
+                                        <option value="#EF4444">Red</option>
+                                      </select>
                                     </div>
                                   )}
+                                </>
+                              ) : isEditing ? (
+                                 <div className="relative">
+                                   {/* Mask original canvas text so textarea does not create double-text */}
+                                   {ann.isExtracted && (
+                                     <span
+                                       className="pointer-events-none absolute inset-0 z-0 rounded-[3px]"
+                                       style={{
+                                         background: ann.coverColor ?? '#ffffff',
+                                         opacity: 1,
+                                       }}
+                                     />
+                                   )}
+                                   <textarea
+                                     autoFocus
+                                     value={ann.text}
+                                     onChange={(e) =>
+                                       setTextAnnotations((prev) =>
+                                         prev.map((a) =>
+                                           a.id === ann.id
+                                             ? { ...a, text: e.target.value }
+                                             : a,
+                                         ),
+                                       )
+                                     }
+                                     onBlur={() => {
+                                       if (!ann.isExtracted && !ann.text.trim()) {
+                                         setTextAnnotations((prev) =>
+                                           prev.filter((a) => a.id !== ann.id),
+                                         );
+                                       }
+                                       setEditingAnnotation(null);
+                                     }}
+                                     onKeyDown={(e) => {
+                                       if (e.key === 'Escape') setEditingAnnotation(null);
+                                       if (
+                                         !ann.isExtracted &&
+                                         !ann.text &&
+                                         (e.key === 'Backspace' || e.key === 'Delete')
+                                       ) {
+                                         e.preventDefault();
+                                         setTextAnnotations((prev) =>
+                                           prev.filter((a) => a.id !== ann.id),
+                                         );
+                                         setEditingAnnotation(null);
+                                       }
+                                     }}
+                                     className="relative z-10 h-full w-full min-h-[24px] resize-none rounded-[3px] border-2 border-[#007AFF] bg-transparent px-[2px] py-0 outline-none"
+                                     style={{
+                                       fontSize: `${pdfPointsToCss(ann.fontSize, displayScale)}px`,
+                                       color: ann.color,
+                                       fontFamily: 'Helvetica, Arial, sans-serif',
+                                       lineHeight: 1.2,
+                                       caretColor: '#007AFF',
+                                     }}
+                                     onClick={(e) => e.stopPropagation()}
+                                   />
+                                   {/* Annotation controls (user-added text only) */}
+                                   {!ann.isExtracted && (
+                                     <div className="absolute -top-8 left-0 flex items-center gap-1 rounded-lg bg-white p-1 shadow-lg border border-slate-200">
+                                       <input
+                                         type="color"
+                                         value={ann.color}
+                                         onChange={(e) =>
+                                           setTextAnnotations((prev) =>
+                                             prev.map((a) =>
+                                               a.id === ann.id
+                                                 ? { ...a, color: e.target.value }
+                                                 : a,
+                                             ),
+                                           )
+                                         }
+                                         className="h-5 w-5 cursor-pointer rounded border-0"
+                                         title="Text color"
+                                         onClick={(e) => e.stopPropagation()}
+                                       />
+                                       <select
+                                         value={ann.fontSize}
+                                         onChange={(e) =>
+                                           setTextAnnotations((prev) =>
+                                             prev.map((a) =>
+                                               a.id === ann.id
+                                                 ? {
+                                                     ...a,
+                                                     fontSize: parseInt(e.target.value),
+                                                   }
+                                                 : a,
+                                             ),
+                                           )
+                                         }
+                                         className="rounded border border-slate-200 bg-white px-1 py-0.5 text-[10px] font-medium text-slate-600 outline-none"
+                                         onClick={(e) => e.stopPropagation()}
+                                       >
+                                         {[8, 10, 12, 14, 16, 18, 20, 24, 28, 32, 36, 48].map(
+                                           (s) => (
+                                             <option key={s} value={s}>
+                                               {s}pt
+                                             </option>
+                                           ),
+                                         )}
+                                       </select>
+                                       <button
+                                         onClick={(e) => {
+                                           e.stopPropagation();
+                                           setTextAnnotations((prev) =>
+                                             prev.filter((a) => a.id !== ann.id),
+                                           );
+                                           setEditingAnnotation(null);
+                                         }}
+                                         className="rounded p-0.5 text-slate-400 hover:bg-red-50 hover:text-red-500 transition-colors"
+                                         title="Delete annotation"
+                                       >
+                                         <Trash2 className="h-3.5 w-3.5" />
+                                       </button>
+                                     </div>
+                                   )}
                                 </div>
                               ) : (
                                 <>
@@ -1767,10 +1999,16 @@ export default function AnnotatePdfModal({ isOpen, onClose }: AnnotatePdfModalPr
                                         }}
                                         aria-label={`Edit text: ${ann.text}`}
                                       >
-                                        <span className="pointer-events-none absolute inset-0 border border-dashed border-[#007AFF]/55 transition-all group-hover:border-[#007AFF]/75" />
-                                        <span className="pointer-events-none absolute inset-0 bg-white/96" />
                                         <span
-                                          className="relative block h-full w-full overflow-hidden px-[1px] py-0"
+                                          className="pointer-events-none absolute -inset-[2px]"
+                                          style={{
+                                            background: ann.coverColor ?? '#ffffff',
+                                            opacity: 1,
+                                          }}
+                                        />
+                                        <span className="pointer-events-none absolute inset-0 z-10 rounded-[3px] border-2 border-[#007AFF]/70 transition-all group-hover:border-[#007AFF]" />
+                                        <span
+                                          className="relative z-20 block h-full w-full overflow-hidden px-[2px] py-0"
                                           style={{
                                             fontSize: `${pdfPointsToCss(ann.fontSize, displayScale)}px`,
                                             color: ann.color,
@@ -1785,8 +2023,8 @@ export default function AnnotatePdfModal({ isOpen, onClose }: AnnotatePdfModalPr
                                       <div
                                         className={`h-full rounded-md px-2 py-1 transition-all ${
                                           mode === 'textbox'
-                                            ? 'border border-[#007AFF]/35 bg-[#EEF5FF] shadow-sm hover:border-[#007AFF]/55 hover:bg-white'
-                                            : 'border border-[#007AFF]/25 bg-[#FFF8DB] hover:border-[#007AFF]/40 hover:bg-[#FFF4C2]'
+                                            ? 'border border-[#007AFF]/35 bg-transparent shadow-none hover:border-[#007AFF]/55 hover:bg-transparent'
+                                            : 'border border-[#007AFF]/25 bg-transparent hover:border-[#007AFF]/40 hover:bg-transparent'
                                         }`}
                                         onClick={(e) => {
                                           e.stopPropagation();
@@ -1809,7 +2047,7 @@ export default function AnnotatePdfModal({ isOpen, onClose }: AnnotatePdfModalPr
                                   ) : (
                                     <button
                                       type="button"
-                                      className="h-full w-full rounded-md border border-dashed border-[#007AFF]/50 bg-[#007AFF]/[0.03] transition-all hover:border-[#007AFF]/75 hover:bg-[#007AFF]/[0.06]"
+                                      className="h-full w-full rounded-[3px] border border-dashed border-[#007AFF]/50 bg-transparent transition-all hover:border-[#007AFF]/80"
                                       onClick={(e) => {
                                         e.stopPropagation();
                                         setEditingAnnotation(ann.id);
@@ -1896,6 +2134,12 @@ export default function AnnotatePdfModal({ isOpen, onClose }: AnnotatePdfModalPr
               {signatureAnnotations.length} signature
               {signatureAnnotations.length !== 1 ? 's' : ''}
             </span>
+            {markupAnnotations.length > 0 && (
+              <>
+                <span className="text-slate-200">•</span>
+                <span>{markupAnnotations.length} mark{markupAnnotations.length !== 1 ? 's' : ''}</span>
+              </>
+            )}
             {mode === 'edit' && textAnnotations.length > 0 && (
               <>
                 <span className="text-slate-200">•</span>
@@ -1907,6 +2151,7 @@ export default function AnnotatePdfModal({ isOpen, onClose }: AnnotatePdfModalPr
             {extractingText && 'Detecting text blocks…'}
             {!extractingText && mode === 'edit' && 'Click existing PDF text to edit or delete'}
             {!extractingText && mode === 'textbox' && 'Drag on the page to place a text box, then type inside it'}
+            {!extractingText && mode === 'highlight' && 'Click a text block to copy / highlight / underline'}
             {!extractingText && mode === 'signature' && 'Drag a signature from the sidebar onto the page'}
             {!extractingText && mode === 'selection' && 'Scroll to view pages'}
           </div>
