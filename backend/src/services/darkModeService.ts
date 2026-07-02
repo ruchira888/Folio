@@ -1,501 +1,317 @@
-import * as pdfjs from 'pdfjs-dist/legacy/build/pdf.mjs'
-import { PDFDocument as PdfLibDocument, StandardFonts, rgb, degrees } from 'pdf-lib'
-import { UTApi } from 'uploadthing/server'
-import { pathToFileURL } from 'url'
-import { storage } from '../index'
-import { logger } from '../logger'
+import * as pdfjs from "pdfjs-dist/legacy/build/pdf.mjs";
+import { PDFDocument as PdfLibDocument } from "pdf-lib";
+import { createCanvas, DOMMatrix, ImageData, Path2D } from "@napi-rs/canvas";
+import { UTApi } from "uploadthing/server";
+import path from "path";
+import { existsSync } from "fs";
+import { pathToFileURL } from "url";
+import { storage } from "../index";
+import { logger } from "../logger";
 
-const projectRoot: string = process.cwd()
-const pdfjsAny = pdfjs as any
+const TEXT_THRESHOLD = 100;
 
-const standardFontsPath: string = projectRoot + '/node_modules/pdfjs-dist/standard_fonts/'
-const standardFontDataUrl: string = pathToFileURL(standardFontsPath).href + '/'
+function resolvePdfJsAssetPath(relativePath: string): string {
+  const candidates = [
+    path.resolve(process.cwd(), "node_modules", "pdfjs-dist", relativePath),
+    path.resolve(
+      __dirname,
+      "..",
+      "..",
+      "node_modules",
+      "pdfjs-dist",
+      relativePath,
+    ),
+  ];
 
-const TEXT_THRESHOLD = 100
-const DARK_BG: [number, number, number] = [18 / 255, 18 / 255, 18 / 255]
-const LIGHT_TEXT: [number, number, number] = [238 / 255, 238 / 255, 238 / 255]
+  for (const candidate of candidates) {
+    if (existsSync(candidate)) {
+      return candidate;
+    }
+  }
 
-type RgbTuple = [number, number, number]
-
-interface ExtractedText {
-  text: string
-  x: number
-  y: number
-  size: number
-  rotateDeg: number
+  // Fall back to cwd-based path for error visibility upstream.
+  return candidates[0];
 }
 
-interface RectShape {
-  type: 'rect'
-  x: number
-  y: number
-  width: number
-  height: number
-}
+const workerPath = resolvePdfJsAssetPath("legacy/build/pdf.worker.mjs");
+(pdfjs as any).GlobalWorkerOptions.workerSrc = pathToFileURL(workerPath).href;
 
-interface LineShape {
-  type: 'line'
-  x1: number
-  y1: number
-  x2: number
-  y2: number
-}
+const standardFontsPath = resolvePdfJsAssetPath("standard_fonts");
+const standardFontDataUrl = pathToFileURL(standardFontsPath).href + "/";
 
-type VectorPrimitive = RectShape | LineShape
+const cMapPath = resolvePdfJsAssetPath("cmaps");
+const cMapUrl = pathToFileURL(cMapPath).href + "/";
 
-interface VectorStyle {
-  fillColor: RgbTuple
-  strokeColor: RgbTuple
-  lineWidth: number
-}
-
-interface VectorDrawInstruction {
-  primitive: VectorPrimitive
-  fill?: RgbTuple
-  stroke?: RgbTuple
-  lineWidth: number
-}
+// pdf.js v5 on Node needs these browser-like globals for painting.
+const globalAny = globalThis as any;
+if (!globalAny.DOMMatrix && DOMMatrix) globalAny.DOMMatrix = DOMMatrix;
+if (!globalAny.ImageData && ImageData) globalAny.ImageData = ImageData;
+if (!globalAny.Path2D && Path2D) globalAny.Path2D = Path2D;
 
 export interface DarkModeResult {
-  fileUrl: string
-  fileKey: string
+  fileUrl: string;
+  fileKey: string;
 }
 
-/**
- * Detect whether a PDF is text-based or image-based (scanned) using pdfjs.
- * This is a quick client-side heuristic; the Python script does a more
- * thorough check with pdfminer.six.
- */
-async function detectPageType(page: any): Promise<'text' | 'scanned'> {
-  const textContent = await page.getTextContent()
+class NodeCanvasFactory {
+  create(width: number, height: number) {
+    const canvas = createCanvas(width, height);
+    const context = canvas.getContext("2d");
+    return { canvas, context };
+  }
+
+  reset(canvasAndContext: any, width: number, height: number) {
+    canvasAndContext.canvas.width = width;
+    canvasAndContext.canvas.height = height;
+  }
+
+  destroy(canvasAndContext: any) {
+    canvasAndContext.canvas.width = 0;
+    canvasAndContext.canvas.height = 0;
+    canvasAndContext.canvas = null;
+    canvasAndContext.context = null;
+  }
+}
+
+async function detectPageType(page: any): Promise<"text" | "scanned"> {
+  const textContent = await page.getTextContent();
   const rawText = textContent.items
-    .map((item: any) => item.str ?? '')
-    .join('')
-    .trim()
-  return rawText.length >= TEXT_THRESHOLD ? 'text' : 'scanned'
+    .map((item: any) => item.str ?? "")
+    .join("")
+    .trim();
+  return rawText.length >= TEXT_THRESHOLD ? "text" : "scanned";
 }
 
-function clamp01(value: number): number {
-  return Math.max(0, Math.min(1, value))
+function clamp255(value: number): number {
+  return Math.max(0, Math.min(255, Math.round(value)));
 }
 
-function rgbToHsl([r, g, b]: RgbTuple): [number, number, number] {
-  const max = Math.max(r, g, b)
-  const min = Math.min(r, g, b)
-  const d = max - min
-  const l = (max + min) / 2
+function transformPixelToDarkMode(
+  r: number,
+  g: number,
+  b: number,
+): [number, number, number] {
+  const max = Math.max(r, g, b);
+  const min = Math.min(r, g, b);
+  const sat = max === 0 ? 0 : (max - min) / max;
+  const luminance = 0.2126 * r + 0.7152 * g + 0.0722 * b;
 
-  if (d === 0) return [0, 0, l]
+  // Grayscale / text-like tones: strong inversion for readability.
+  if (sat < 0.18) {
+    if (luminance > 240) return [18, 18, 18]; // near-white backgrounds -> dark
+    if (luminance < 45) return [235, 235, 235]; // near-black text -> light
 
-  const s = l > 0.5 ? d / (2 - max - min) : d / (max + min)
-  let h = 0
-
-  if (max === r) h = (g - b) / d + (g < b ? 6 : 0)
-  else if (max === g) h = (b - r) / d + 2
-  else h = (r - g) / d + 4
-
-  return [h / 6, s, l]
-}
-
-function hslToRgb([h, s, l]: [number, number, number]): RgbTuple {
-  if (s === 0) return [l, l, l]
-
-  const hue2rgb = (p: number, q: number, t: number): number => {
-    let tt = t
-    if (tt < 0) tt += 1
-    if (tt > 1) tt -= 1
-    if (tt < 1 / 6) return p + (q - p) * 6 * tt
-    if (tt < 1 / 2) return q
-    if (tt < 2 / 3) return p + (q - p) * (2 / 3 - tt) * 6
-    return p
+    // Smoothly invert the middle range while keeping contrast moderate.
+    const t = luminance / 255;
+    const mapped = (1 - t) * 215 + t * 35;
+    return [clamp255(mapped), clamp255(mapped), clamp255(mapped)];
   }
 
-  const q = l < 0.5 ? l * (1 + s) : l + s - l * s
-  const p = 2 * l - q
-
-  return [
-    hue2rgb(p, q, h + 1 / 3),
-    hue2rgb(p, q, h),
-    hue2rgb(p, q, h - 1 / 3),
-  ]
-}
-
-function mapColorForDarkMode(source: RgbTuple): RgbTuple {
-  const [r, g, b] = source
-  const luminance = 0.299 * r + 0.587 * g + 0.114 * b
-
-  if (luminance < 0.12) return LIGHT_TEXT
-  if (luminance > 0.94) return DARK_BG
-
-  const [h, s, l] = rgbToHsl(source)
-  const newL = clamp01(0.68 + (1 - l) * 0.18)
-  const newS = clamp01(Math.max(s, 0.35))
-  return hslToRgb([h, newS, newL])
-}
-
-function cmykToRgb(c: number, m: number, y: number, k: number): RgbTuple {
-  const r = 1 - Math.min(1, c * (1 - k) + k)
-  const g = 1 - Math.min(1, m * (1 - k) + k)
-  const b = 1 - Math.min(1, y * (1 - k) + k)
-  return [r, g, b]
-}
-
-function multiplyMatrices(a: number[], b: number[]): number[] {
-  return [
-    a[0] * b[0] + a[2] * b[1],
-    a[1] * b[0] + a[3] * b[1],
-    a[0] * b[2] + a[2] * b[3],
-    a[1] * b[2] + a[3] * b[3],
-    a[0] * b[4] + a[2] * b[5] + a[4],
-    a[1] * b[4] + a[3] * b[5] + a[5],
-  ]
-}
-
-function transformPoint(x: number, y: number, matrix: number[]): { x: number; y: number } {
-  return {
-    x: matrix[0] * x + matrix[2] * y + matrix[4],
-    y: matrix[1] * x + matrix[3] * y + matrix[5],
+  // Color-rich regions (often images/charts): preserve hue, gently rebalance.
+  if (luminance > 210) {
+    return [clamp255(r * 0.78), clamp255(g * 0.78), clamp255(b * 0.78)];
   }
-}
-
-function mapFillArgsToRgb(fn: number, args: any[], ops: any): RgbTuple {
-  if (fn === ops.setFillRGBColor) return [clamp01(args[0]), clamp01(args[1]), clamp01(args[2])]
-  if (fn === ops.setFillGray) {
-    const g = clamp01(args[0])
-    return [g, g, g]
+  if (luminance < 55) {
+    return [clamp255(r * 1.22), clamp255(g * 1.22), clamp255(b * 1.22)];
   }
-  if (fn === ops.setFillCMYKColor) return cmykToRgb(args[0], args[1], args[2], args[3])
-  return [0, 0, 0]
+
+  return [clamp255(r * 0.96), clamp255(g * 0.96), clamp255(b * 0.96)];
 }
 
-function mapStrokeArgsToRgb(fn: number, args: any[], ops: any): RgbTuple {
-  if (fn === ops.setStrokeRGBColor) return [clamp01(args[0]), clamp01(args[1]), clamp01(args[2])]
-  if (fn === ops.setStrokeGray) {
-    const g = clamp01(args[0])
-    return [g, g, g]
-  }
-  if (fn === ops.setStrokeCMYKColor) return cmykToRgb(args[0], args[1], args[2], args[3])
-  return [0, 0, 0]
-}
+function looksMostlyBlankWhite(imageData: any): boolean {
+  const data: Uint8ClampedArray = imageData.data;
+  let nonWhite = 0;
+  const totalPixels = data.length / 4;
 
-function parsePathPrimitives(pathOps: number[], coords: number[], ctm: number[], ops: any): VectorPrimitive[] {
-  const primitives: VectorPrimitive[] = []
-  let cursor = 0
-  let currentPoint: { x: number; y: number } | null = null
+  for (let i = 0; i < data.length; i += 4) {
+    const a = data[i + 3];
+    if (a === 0) continue;
 
-  for (const pathOp of pathOps) {
-    if (pathOp === ops.rectangle) {
-      const x = coords[cursor++]
-      const y = coords[cursor++]
-      const w = coords[cursor++]
-      const h = coords[cursor++]
+    const r = data[i];
+    const g = data[i + 1];
+    const b = data[i + 2];
 
-      const p1 = transformPoint(x, y, ctm)
-      const p2 = transformPoint(x + w, y + h, ctm)
-
-      primitives.push({
-        type: 'rect',
-        x: Math.min(p1.x, p2.x),
-        y: Math.min(p1.y, p2.y),
-        width: Math.abs(p2.x - p1.x),
-        height: Math.abs(p2.y - p1.y),
-      })
-      currentPoint = p2
-      continue
-    }
-
-    if (pathOp === ops.moveTo) {
-      const x = coords[cursor++]
-      const y = coords[cursor++]
-      currentPoint = transformPoint(x, y, ctm)
-      continue
-    }
-
-    if (pathOp === ops.lineTo) {
-      const x = coords[cursor++]
-      const y = coords[cursor++]
-      const nextPoint = transformPoint(x, y, ctm)
-      if (currentPoint) {
-        primitives.push({
-          type: 'line',
-          x1: currentPoint.x,
-          y1: currentPoint.y,
-          x2: nextPoint.x,
-          y2: nextPoint.y,
-        })
-      }
-      currentPoint = nextPoint
-      continue
-    }
-
-    if (pathOp === ops.curveTo) {
-      cursor += 6
-      continue
-    }
-
-    if (pathOp === ops.curveTo2 || pathOp === ops.curveTo3) {
-      cursor += 4
-      continue
+    if (r < 248 || g < 248 || b < 248) {
+      nonWhite++;
     }
   }
 
-  return primitives
+  return totalPixels > 0 && nonWhite / totalPixels < 0.0002;
 }
 
-function buildVectorInstructions(operatorList: any): VectorDrawInstruction[] {
-  const ops = pdfjsAny.OPS
-  const instructions: VectorDrawInstruction[] = []
+function applyDarkModeToImageData(imageData: any) {
+  const data = imageData.data;
 
-  const defaultStyle: VectorStyle = {
-    fillColor: [0, 0, 0],
-    strokeColor: [0, 0, 0],
-    lineWidth: 1,
+  for (let i = 0; i < data.length; i += 4) {
+    const alpha = data[i + 3];
+    if (alpha === 0) continue;
+
+    const [nr, ng, nb] = transformPixelToDarkMode(
+      data[i],
+      data[i + 1],
+      data[i + 2],
+    );
+    data[i] = nr;
+    data[i + 1] = ng;
+    data[i + 2] = nb;
   }
-
-  let style: VectorStyle = { ...defaultStyle }
-  let ctm = [1, 0, 0, 1, 0, 0]
-  const styleStack: Array<{ style: VectorStyle; ctm: number[] }> = []
-  let pendingPath: VectorPrimitive[] = []
-
-  const flushPath = (mode: 'fill' | 'stroke' | 'fillStroke') => {
-    for (const primitive of pendingPath) {
-      instructions.push({
-        primitive,
-        fill: mode === 'fill' || mode === 'fillStroke' ? mapColorForDarkMode(style.fillColor) : undefined,
-        stroke: mode === 'stroke' || mode === 'fillStroke' ? mapColorForDarkMode(style.strokeColor) : undefined,
-        lineWidth: style.lineWidth,
-      })
-    }
-    pendingPath = []
-  }
-
-  for (let i = 0; i < operatorList.fnArray.length; i++) {
-    const fn = operatorList.fnArray[i]
-    const args = operatorList.argsArray[i]
-
-    if (fn === ops.save) {
-      styleStack.push({ style: { ...style }, ctm: [...ctm] })
-      continue
-    }
-
-    if (fn === ops.restore) {
-      const previous = styleStack.pop()
-      if (previous) {
-        style = previous.style
-        ctm = previous.ctm
-      }
-      continue
-    }
-
-    if (fn === ops.transform) {
-      ctm = multiplyMatrices(ctm, args)
-      continue
-    }
-
-    if (fn === ops.setFillRGBColor || fn === ops.setFillGray || fn === ops.setFillCMYKColor) {
-      style.fillColor = mapFillArgsToRgb(fn, args, ops)
-      continue
-    }
-
-    if (fn === ops.setStrokeRGBColor || fn === ops.setStrokeGray || fn === ops.setStrokeCMYKColor) {
-      style.strokeColor = mapStrokeArgsToRgb(fn, args, ops)
-      continue
-    }
-
-    if (fn === ops.setLineWidth) {
-      style.lineWidth = Math.max(0.25, Number(args[0]) || 1)
-      continue
-    }
-
-    if (fn === ops.constructPath) {
-      const [pathOps, pathCoords] = args
-      pendingPath = parsePathPrimitives(pathOps, pathCoords, ctm, ops)
-      continue
-    }
-
-    if (fn === ops.fill || fn === ops.eoFill) {
-      flushPath('fill')
-      continue
-    }
-
-    if (fn === ops.stroke || fn === ops.closeStroke) {
-      flushPath('stroke')
-      continue
-    }
-
-    if (fn === ops.fillStroke || fn === ops.eoFillStroke || fn === ops.closeFillStroke || fn === ops.closeEOFillStroke) {
-      flushPath('fillStroke')
-      continue
-    }
-
-    if (fn === ops.endPath) {
-      pendingPath = []
-    }
-  }
-
-  return instructions
-}
-
-async function extractTextRuns(page: any): Promise<ExtractedText[]> {
-  const textContent = await page.getTextContent({
-    includeMarkedContent: false,
-    disableCombineTextItems: false,
-  } as any)
-
-  const textRuns: ExtractedText[] = []
-
-  for (const item of textContent.items ?? []) {
-    const textItem = item as any
-    if (!textItem?.str || typeof textItem.str !== 'string') continue
-
-    const transform = Array.isArray(textItem.transform) ? textItem.transform : [1, 0, 0, 1, 0, 0]
-    const fontSize = Math.max(4, Math.hypot(Number(transform[0]) || 0, Number(transform[1]) || 0))
-    const rotateDeg = (Math.atan2(Number(transform[1]) || 0, Number(transform[0]) || 1) * 180) / Math.PI
-
-    textRuns.push({
-      text: textItem.str,
-      x: Number(transform[4]) || 0,
-      y: Number(transform[5]) || 0,
-      size: fontSize,
-      rotateDeg,
-    })
-  }
-
-  return textRuns
 }
 
 export async function darkModeService(fileId: string): Promise<DarkModeResult> {
-  const record = storage.getRecord(fileId)
-  if (!record) throw new Error('File not found or expired')
+  const record = storage.getRecord(fileId);
+  if (!record) throw new Error("File not found or expired");
 
-  const buffer = await storage.getBuffer(fileId)
-  const data = new Uint8Array(buffer)
+  const buffer = await storage.getBuffer(fileId);
+  const data = new Uint8Array(buffer);
 
-  // Load the PDF once. pdfjs transfers (and detaches) the underlying
-  // ArrayBuffer of `data` while loading, so the same buffer must not be handed
-  // to a second getDocument call — doing so throws while cloning the detached
-  // buffer.
-  const loadingTask = pdfjs.getDocument({
-    data,
-    disableWorker: true,
-    useSystemFonts: true,
-    disableFontFace: true,
-    standardFontDataUrl,
-  } as any)
-  const sourcePdf = await loadingTask.promise
+  let sourcePdf: any | null = null;
+  const canvasFactory = new NodeCanvasFactory();
 
-  // Quick text detection: scanned/image-only PDFs cannot be recolored into a
-  // readable dark theme, so require at least one page with extractable text.
-  let hasText = false
   try {
+    const loadingTask = pdfjs.getDocument({
+      data,
+      useSystemFonts: true,
+      disableFontFace: true,
+      standardFontDataUrl,
+      cMapUrl,
+      cMapPacked: true,
+      useWorkerFetch: false,
+      isEvalSupported: false,
+    } as any);
+
+    sourcePdf = await loadingTask.promise;
+
+    // Ensure this is text-based before processing.
+    let hasText = false;
     for (let i = 1; i <= sourcePdf.numPages; i++) {
-      const page = await sourcePdf.getPage(i)
-      const pageType = await detectPageType(page)
-      if (pageType === 'text') {
-        hasText = true
-        break
+      const page = await sourcePdf.getPage(i);
+      const pageType = await detectPageType(page);
+      if (pageType === "text") {
+        hasText = true;
+        page.cleanup();
+        break;
       }
+      page.cleanup();
     }
-  } catch (e: any) {
-    logger.warn(`pdfjs text detection failed for ${fileId}: ${e?.message}`)
-  }
 
-  if (!hasText) {
-    sourcePdf.destroy()
-    throw new Error('UNSUPPORTED_SCANNED_PDF')
-  }
+    if (!hasText) {
+      throw new Error("UNSUPPORTED_SCANNED_PDF");
+    }
 
-  const outputPdf = await PdfLibDocument.create()
-  const textFont = await outputPdf.embedFont(StandardFonts.Helvetica)
+    const outputPdf = await PdfLibDocument.create();
 
-  try {
-    for (let pageIndex = 1; pageIndex <= sourcePdf.numPages; pageIndex++) {
-      const sourcePage = await sourcePdf.getPage(pageIndex)
-      const viewport = sourcePage.getViewport({ scale: 1 })
-      const newPage = outputPdf.addPage([viewport.width, viewport.height])
+    for (let i = 1; i <= sourcePdf.numPages; i++) {
+      const page = await sourcePdf.getPage(i);
+      const viewport = page.getViewport({ scale: 1 });
 
-      // Step 1: dark background
-      newPage.drawRectangle({
+      const canvasWidth = Math.max(1, Math.ceil(viewport.width));
+      const canvasHeight = Math.max(1, Math.ceil(viewport.height));
+      const { canvas, context } = canvasFactory.create(
+        canvasWidth,
+        canvasHeight,
+      );
+
+      context.fillStyle = "#ffffff";
+      context.fillRect(0, 0, canvasWidth, canvasHeight);
+
+      const renderContext = {
+        canvasContext: context as any,
+        viewport,
+        canvasFactory: canvasFactory as any,
+        canvas: canvas as any,
+      };
+
+      await page.render(renderContext).promise;
+
+      let imageData = context.getImageData(0, 0, canvasWidth, canvasHeight);
+
+      if (looksMostlyBlankWhite(imageData)) {
+        logger.warn(
+          `Dark-mode page ${i} looked blank after default render; retrying with print intent`,
+        );
+        context.fillStyle = "#ffffff";
+        context.fillRect(0, 0, canvasWidth, canvasHeight);
+        await page.render({
+          ...renderContext,
+          intent: "print",
+        } as any).promise;
+        imageData = context.getImageData(0, 0, canvasWidth, canvasHeight);
+      }
+
+      if (looksMostlyBlankWhite(imageData)) {
+        const textContent = await page.getTextContent();
+        const textItems = textContent?.items?.length ?? 0;
+        logger.error(
+          `Dark-mode page ${i} still blank after print-intent retry (text items: ${textItems})`,
+        );
+
+        if (textItems > 0) {
+          throw new Error("PDF_TEXT_RENDER_FAILED");
+        }
+      }
+
+      applyDarkModeToImageData(imageData);
+      context.putImageData(imageData, 0, 0);
+
+      const pagePng = canvas.toBuffer("image/png");
+      const embedded = await outputPdf.embedPng(pagePng);
+
+      const newPage = outputPdf.addPage([viewport.width, viewport.height]);
+      newPage.drawImage(embedded, {
         x: 0,
         y: 0,
         width: viewport.width,
         height: viewport.height,
-        color: rgb(DARK_BG[0], DARK_BG[1], DARK_BG[2]),
-      })
+      });
 
-      // Step 2: vector redraw with remapped colors (best-effort for common primitives)
-      const operatorList = await sourcePage.getOperatorList()
-      const vectors = buildVectorInstructions(operatorList)
-
-      for (const vector of vectors) {
-        if (vector.primitive.type === 'rect') {
-          const rect = vector.primitive
-          newPage.drawRectangle({
-            x: rect.x,
-            y: rect.y,
-            width: Math.max(0.1, rect.width),
-            height: Math.max(0.1, rect.height),
-            color: vector.fill ? rgb(vector.fill[0], vector.fill[1], vector.fill[2]) : undefined,
-            borderColor: vector.stroke ? rgb(vector.stroke[0], vector.stroke[1], vector.stroke[2]) : undefined,
-            borderWidth: vector.stroke ? vector.lineWidth : undefined,
-          })
-          continue
-        }
-
-        if (vector.primitive.type === 'line' && vector.stroke) {
-          const line = vector.primitive
-          newPage.drawLine({
-            start: { x: line.x1, y: line.y1 },
-            end: { x: line.x2, y: line.y2 },
-            thickness: vector.lineWidth,
-            color: rgb(vector.stroke[0], vector.stroke[1], vector.stroke[2]),
-          })
-        }
-      }
-
-      // Step 3: text redraw in light color preserving position and approximate angle
-      const textRuns = await extractTextRuns(sourcePage)
-      for (const run of textRuns) {
-        if (!run.text.trim()) continue
-        newPage.drawText(run.text, {
-          x: run.x,
-          y: run.y,
-          size: run.size,
-          font: textFont,
-          color: rgb(LIGHT_TEXT[0], LIGHT_TEXT[1], LIGHT_TEXT[2]),
-          rotate: degrees(run.rotateDeg),
-        })
-      }
-
-      sourcePage.cleanup()
+      page.cleanup();
+      canvasFactory.destroy({ canvas, context });
     }
+
+    const darkPdfBytes = await outputPdf.save();
+    const file = new File(
+      [Buffer.from(darkPdfBytes)],
+      `dark-mode-${record.originalName}`,
+      {
+        type: "application/pdf",
+      },
+    );
+
+    const utapi = new UTApi();
+    const uploaded = await utapi.uploadFiles(file);
+    if (uploaded.error)
+      throw new Error("Failed to upload dark-mode PDF to UploadThing");
+
+    const now = new Date();
+    storage.saveRecord({
+      id: uploaded.data.key,
+      originalName: `dark-mode-${record.originalName}`,
+      url: uploaded.data.url,
+      uploadedAt: now,
+      expiresAt: new Date(now.getTime() + 30 * 60 * 1000),
+      sizeMb: uploaded.data.size / (1024 * 1024),
+    });
+
+    logger.info(`Dark-mode PDF uploaded: ${uploaded.data.key}`);
+
+    return {
+      fileUrl: uploaded.data.url,
+      fileKey: uploaded.data.key,
+    };
+  } catch (error: any) {
+    logger.error(
+      `Dark-mode conversion failed for ${fileId}: ${error?.message}`,
+      {
+        stack: error?.stack,
+        error,
+      },
+    );
+    throw error;
   } finally {
-    sourcePdf.destroy()
-  }
-
-  const darkPdfBytes = await outputPdf.save()
-  const file = new File([Buffer.from(darkPdfBytes)], `dark-mode-${record.originalName}`, {
-    type: 'application/pdf',
-  })
-
-  const utapi = new UTApi()
-  const uploaded = await utapi.uploadFiles(file)
-  if (uploaded.error) throw new Error('Failed to upload dark-mode PDF to UploadThing')
-
-  const now = new Date()
-  storage.saveRecord({
-    id: uploaded.data.key,
-    originalName: `dark-mode-${record.originalName}`,
-    url: uploaded.data.url,
-    uploadedAt: now,
-    expiresAt: new Date(now.getTime() + 30 * 60 * 1000),
-    sizeMb: uploaded.data.size / (1024 * 1024),
-  })
-
-  logger.info(`Dark-mode PDF uploaded: ${uploaded.data.key}`)
-
-  return {
-    fileUrl: uploaded.data.url,
-    fileKey: uploaded.data.key,
+    if (sourcePdf) {
+      try {
+        sourcePdf.destroy();
+      } catch {}
+    }
   }
 }
