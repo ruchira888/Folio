@@ -2,10 +2,43 @@ import  {UTApi} from 'uploadthing/server'
 import  {StorageProvider} from './StorageProvider'
 import { FileRecord } from '../types'
 import { logger } from '../logger'
-import { response } from 'express'
+import fs from 'fs'
+import path from 'path'
 
-//in-mem sto asof now late will repl w db
-const fileStore=new Map<string,FileRecord>()
+const STORE_FILE = path.resolve(__dirname, '../../filestore.json')
+
+function loadStore(): Map<string, FileRecord> {
+  const map = new Map<string, FileRecord>()
+  try {
+    if (fs.existsSync(STORE_FILE)) {
+      const raw = fs.readFileSync(STORE_FILE, 'utf8')
+      const data = JSON.parse(raw)
+      for (const [key, val] of Object.entries(data)) {
+        const record = val as any
+        if (record.uploadedAt) record.uploadedAt = new Date(record.uploadedAt)
+        if (record.expiresAt) record.expiresAt = new Date(record.expiresAt)
+        map.set(key, record as FileRecord)
+      }
+    }
+  } catch (err) {
+    logger.error('Failed to load filestore.json', err)
+  }
+  return map
+}
+
+function saveStore(map: Map<string, FileRecord>): void {
+  try {
+    const obj: Record<string, FileRecord> = {}
+    for (const [key, val] of map.entries()) {
+      obj[key] = val
+    }
+    fs.writeFileSync(STORE_FILE, JSON.stringify(obj, null, 2), 'utf8')
+  } catch (err) {
+    logger.error('Failed to save filestore.json', err)
+  }
+}
+
+const fileStore = loadStore()
 
 export class UploadThingProvider extends StorageProvider{
   private utapi:UTApi
@@ -19,6 +52,7 @@ export class UploadThingProvider extends StorageProvider{
   }
   saveRecord(record: FileRecord): void {
      fileStore.set(record.id, record)
+     saveStore(fileStore)
   }
   async getBuffer(fileId: string): Promise<Buffer> {//get file id download pdf then return bytes so to perff furt op
     const record=fileStore.get(fileId)
@@ -33,6 +67,7 @@ export class UploadThingProvider extends StorageProvider{
   async delete(fileId: string): Promise<void> {
     await this.utapi.deleteFiles(fileId)
     fileStore.delete(fileId)
+    saveStore(fileStore)
     logger.info(`Deleted File: ${fileId}`)
   }
   async listExpired(before: Date): Promise<FileRecord[]> {

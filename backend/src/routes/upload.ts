@@ -36,7 +36,7 @@ try{
      originalName,
     url,
     uploadedAt:now,
-    expiresAt:new Date(now.getTime()+Number(process.env.FILE_LIFETIME_MINUTES || 30)*60*1000),
+    expiresAt:new Date(now.getTime()+Number(process.env.FILE_LIFETIME_MINUTES || 45)*60*1000),
     sizeMb
   }
   storage.saveRecord(record)

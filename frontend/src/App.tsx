@@ -9,6 +9,7 @@ import DarkModePdfModal from './components/DarkModePdfModal';
 import ConvertToMarkdownModal from './components/ConvertToMarkdownModal';
 import WatermarkPdfModal from './components/WatermarkPdfModal';
 import TranslatePdfModal from './components/TranslatePdfModal';
+import AnnotatePdfModal from './components/AnnotatePdfModal';
 import { useState } from 'react';
 import { isModalTool, type ToolType } from './config/toolConfigs';
 
@@ -92,7 +93,12 @@ function App() {
         onClose={closeModal}
       />
 
-      {activeTool && activeTool !== 'summarize' && activeTool !== 'delete-pages' && activeTool !== 'protect' && activeTool !== 'dark-mode' && activeTool !== 'convert' && activeTool !== 'watermark' && activeTool !== 'translate' && isModalTool(activeTool) && (
+      <AnnotatePdfModal
+        isOpen={activeTool === 'annotate'}
+        onClose={closeModal}
+      />
+
+      {activeTool && activeTool !== 'summarize' && activeTool !== 'delete-pages' && activeTool !== 'protect' && activeTool !== 'dark-mode' && activeTool !== 'convert' && activeTool !== 'watermark' && activeTool !== 'translate' && activeTool !== 'annotate' && isModalTool(activeTool) && (
         <GenericToolModal
           isOpen
           toolType={activeTool}

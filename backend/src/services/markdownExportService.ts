@@ -559,7 +559,7 @@ export async function exportPdfToMarkdown(fileId: string): Promise<MarkdownExpor
     originalName: `${record.originalName.replace(/\.pdf$/i, '')}.md`,
     url: uploaded.data.url,
     uploadedAt: now,
-    expiresAt: new Date(now.getTime() + 30 * 60 * 1000),
+    expiresAt: new Date(now.getTime() + Number(process.env.FILE_LIFETIME_MINUTES || 45) * 60 * 1000),
     sizeMb: uploaded.data.size / (1024 * 1024),
   })
 
