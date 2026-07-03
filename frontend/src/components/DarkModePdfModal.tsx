@@ -245,7 +245,7 @@ export default function DarkModePdfModal({ isOpen, onClose }: DarkModePdfModalPr
         <div className="border-t border-slate-700 bg-[#141414] px-6 py-4 text-center sm:px-10">
           <p className="text-[13px] font-medium leading-relaxed text-slate-500">
             <span aria-hidden className="mr-1.5">🔒</span>
-            Your files are secure and private. We never store your documents.
+           Your files are secure
           </p>
         </div>
       </div>

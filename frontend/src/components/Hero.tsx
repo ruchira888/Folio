@@ -83,7 +83,7 @@ export default function Hero() {
             <motion.p 
               initial={{ opacity: 0, y: 10, filter: "blur(8px)" }}
               animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
-              transition={{ delay: 2.2, duration: 1, ease: [0.22, 1, 0.36, 1] }}
+              transition={{ delay: 0.5, duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
               className="text-[15px] md:text-[16px] text-slate-600 font-medium max-w-sm leading-relaxed mb-8 font-sans"
             >
               Everything you need to manage, edit,

@@ -70,7 +70,7 @@ export default function ToolModal({
             <span aria-hidden className="mr-1.5">
               🔒
             </span>
-            Your files are secure and private. We never store your documents.
+           Your files are secure
           </p>
         </div>
       </div>

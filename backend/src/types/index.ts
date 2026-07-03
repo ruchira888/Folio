@@ -115,3 +115,8 @@ export type MergePdfResult = {
   fileUrl: string;
   fileKey: string;
 };
+
+export type ToJpgResult = {
+  fileUrl: string;
+  fileKey: string;
+};

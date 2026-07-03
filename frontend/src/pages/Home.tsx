@@ -1,6 +1,7 @@
-import Hero from '../components/Hero';
-import ToolsGrid from '../components/ToolsGrid';
-import { type ToolType } from '../config/toolConfigs';
+import Hero from "../components/Hero";
+import ToolsGrid from "../components/ToolsGrid";
+import SupportSection from "../components/SupportSection";
+import { type ToolType } from "../config/toolConfigs";
 
 interface HomeProps {
   setActiveTool: (tool: ToolType) => void;
@@ -11,6 +12,7 @@ export default function Home({ setActiveTool }: HomeProps) {
     <>
       <Hero />
       <ToolsGrid setActiveTool={setActiveTool} />
+      <SupportSection />
     </>
   );
 }

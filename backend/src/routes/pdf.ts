@@ -16,6 +16,7 @@ import {
   TranslatePdfResult,
   MergePdfRequestBody,
   MergePdfResult,
+  ToJpgResult,
 } from "../types";
 import { summarizePdf } from "../services/summaryService";
 import { deletePagesService } from "../services/deletePagesService";
@@ -29,6 +30,7 @@ import { logger } from "../logger";
 import { TranslatePlusTranslator } from "../services/translation/providers/TranslatePlusTranslator";
 import { PdfTranslationService } from "../services/translation/PdfTranslationService";
 import { mergePdfService } from "../services/mergePdfService";
+import { toJpgService } from "../services/toJpgService";
 
 const translatePlusTranslator = new TranslatePlusTranslator();
 const pdfTranslationService = new PdfTranslationService(
@@ -213,6 +215,63 @@ pdfRouter.post(
     } catch (err) {
       next(err);
     }
+  },
+);
+
+// TO JPG (ZIP)
+async function handleToJpg(
+  fileId: string,
+  res: Response,
+  next: NextFunction,
+): Promise<void> {
+  try {
+    if (!fileId) {
+      res.status(400).json({ success: false, error: "Missing file id" });
+      return;
+    }
+
+    const record = storage.getRecord(fileId);
+    if (!record) {
+      res
+        .status(404)
+        .json({ success: false, error: "File not found or expired" });
+      return;
+    }
+
+    const result = await toJpgService(fileId);
+
+    logger.info(`PDF to JPG complete for: ${fileId}`);
+
+    res.json({
+      success: true,
+      data: result,
+    } as ApiResponse<ToJpgResult>);
+  } catch (err: any) {
+    if (err?.message === "PDF_TO_JPG_BINARY_MISSING") {
+      res.status(500).json({
+        success: false,
+        error:
+          "PDF-to-JPG conversion requires GraphicsMagick and Ghostscript on the server. Please install them and retry.",
+      });
+      return;
+    }
+    next(err);
+  }
+}
+
+pdfRouter.post(
+  "/:id/to-jpg",
+  async (req: Request<{ id: string }>, res: Response, next: NextFunction) => {
+    await handleToJpg(req.params.id, res, next);
+  },
+);
+
+// Compatibility route (body-based): POST /api/pdf/to-jpg { fileId }
+pdfRouter.post(
+  "/to-jpg",
+  async (req: Request, res: Response, next: NextFunction) => {
+    const fileId = String(req.body?.fileId || "");
+    await handleToJpg(fileId, res, next);
   },
 );
 

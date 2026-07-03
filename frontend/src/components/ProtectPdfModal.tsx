@@ -136,7 +136,7 @@ export default function ProtectPdfModal({ isOpen, onClose }: ProtectPdfModalProp
           <div className="border-t border-[#FFE4E4] bg-[#FFF8F8] px-6 py-4 text-center sm:px-10">
             <p className="text-[13px] font-medium leading-relaxed text-slate-500">
               <span aria-hidden className="mr-1.5">🔒</span>
-              Your files are secure and private. We never store your documents.
+             Your files are secure
             </p>
           </div>
         </div>
@@ -208,7 +208,7 @@ export default function ProtectPdfModal({ isOpen, onClose }: ProtectPdfModalProp
           <div className="border-t border-[#FFE4E4] bg-[#FFF8F8] px-6 py-4 text-center sm:px-10">
             <p className="text-[13px] font-medium leading-relaxed text-slate-500">
               <span aria-hidden className="mr-1.5">🔒</span>
-              Your files are secure and private. We never store your documents.
+             Your files are secure
             </p>
           </div>
         </div>

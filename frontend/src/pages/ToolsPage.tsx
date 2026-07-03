@@ -150,7 +150,7 @@ export default function ToolsPage({ setActiveTool }: ToolsPageProps) {
           </div>
           <div className="flex items-center justify-center gap-2.5 text-slate-400 font-medium text-[12.5px] border-y sm:border-y-0 sm:border-x border-slate-100/60 py-4 sm:py-0">
             <EyeOff className="w-4.5 h-4.5 text-indigo-400 shrink-0" />
-            <span>We never store your documents.</span>
+            <span>Files deleted after 45 minutes.</span>
           </div>
           <div className="flex items-center justify-center gap-2.5 text-slate-400 font-medium text-[12.5px]">
             <Monitor className="w-4.5 h-4.5 text-blue-400 shrink-0" />

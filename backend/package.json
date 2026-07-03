@@ -12,6 +12,7 @@
   "license": "ISC",
   "description": "",
   "devDependencies": {
+    "@types/adm-zip": "^0.5.8",
     "@types/cors": "^2.8.19",
     "@types/express": "^5.0.6",
     "@types/multer": "^2.1.0",
@@ -25,6 +26,7 @@
     "@cantoo/pdf-lib": "^2.7.1",
     "@pdf-lib/fontkit": "^1.1.1",
     "@vitalets/google-translate-api": "^9.2.1",
+    "adm-zip": "^0.5.18",
     "canvas": "^3.2.3",
     "cors": "^2.8.6",
     "dotenv": "^17.4.2",
@@ -34,6 +36,7 @@
     "node-cron": "^4.2.1",
     "pdf-lib": "^1.17.1",
     "pdf-parse": "^2.2.2",
+    "pdf2pic": "^3.2.0",
     "pdfjs-dist": "^5.7.284",
     "regenerator-runtime": "^0.14.1",
     "uploadthing": "^7.7.4",

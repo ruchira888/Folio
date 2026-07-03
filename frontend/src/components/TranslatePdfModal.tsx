@@ -1,11 +1,11 @@
-import { useState } from 'react';
-import { useUploadThing } from '../utils/uploadthing';
-import { uploadComplete, translatePdf } from '../utils/api';
-import { validateToolFiles } from '../utils/validateToolFiles';
-import { downloadFile } from '../utils/download';
-import ToolModal from './ToolModal';
-import ModalOverlay from './ModalOverlay';
-import { X, Download, Languages, Globe } from 'lucide-react';
+import { useState } from "react";
+import { useUploadThing } from "../utils/uploadthing";
+import { uploadComplete, translatePdf } from "../utils/api";
+import { validateToolFiles } from "../utils/validateToolFiles";
+import { downloadFile } from "../utils/download";
+import ToolModal from "./ToolModal";
+import ModalOverlay from "./ModalOverlay";
+import { X, Download, Languages, Globe } from "lucide-react";
 
 interface TranslatePdfModalProps {
   isOpen: boolean;
@@ -18,33 +18,36 @@ interface TranslationResult {
 }
 
 const LANGUAGES = [
-  { code: 'es', name: 'Spanish (Español)' },
-  { code: 'fr', name: 'French (Français)' },
-  { code: 'de', name: 'German (Deutsch)' },
-  { code: 'it', name: 'Italian (Italiano)' },
-  { code: 'pt', name: 'Portuguese (Português)' },
-  { code: 'ja', name: 'Japanese (日本語)' },
-  { code: 'zh-CN', name: 'Chinese (Simplified) (中文)' },
-  { code: 'ru', name: 'Russian (Русский)' },
-  { code: 'ar', name: 'Arabic (العربية)' },
-  { code: 'hi', name: 'Hindi (हिन्दी)' },
+  { code: "es", name: "Spanish (Español)" },
+  { code: "fr", name: "French (Français)" },
+  { code: "de", name: "German (Deutsch)" },
+  { code: "it", name: "Italian (Italiano)" },
+  { code: "pt", name: "Portuguese (Português)" },
+  { code: "ja", name: "Japanese (日本語)" },
+  { code: "zh-CN", name: "Chinese (Simplified) (中文)" },
+  { code: "ru", name: "Russian (Русский)" },
+  { code: "ar", name: "Arabic (العربية)" },
+  { code: "hi", name: "Hindi (हिन्दी)" },
 ];
 
-export default function TranslatePdfModal({ isOpen, onClose }: TranslatePdfModalProps) {
-  const { startUpload, isUploading } = useUploadThing('pdfUploader');
+export default function TranslatePdfModal({
+  isOpen,
+  onClose,
+}: TranslatePdfModalProps) {
+  const { startUpload, isUploading } = useUploadThing("pdfUploader");
   const [isProcessing, setIsProcessing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   // States
   const [fileId, setFileId] = useState<string | null>(null);
-  const [fileName, setFileName] = useState('');
-  const [targetLanguage, setTargetLanguage] = useState('es');
+  const [fileName, setFileName] = useState("");
+  const [targetLanguage, setTargetLanguage] = useState("es");
   const [result, setResult] = useState<TranslationResult | null>(null);
 
   // ── Phase 0: upload ───────────────────────────────────────────────────────
 
   const handleFilesSelected = (files: File[]) => {
-    const validationError = validateToolFiles('translate', files);
+    const validationError = validateToolFiles("translate", files);
     if (validationError) {
       setError(validationError);
       return;
@@ -58,14 +61,21 @@ export default function TranslatePdfModal({ isOpen, onClose }: TranslatePdfModal
     try {
       const uploadedFiles = await startUpload([file]);
       if (!uploadedFiles || uploadedFiles.length === 0) {
-        setError('Upload failed. Please try again.');
+        setError("Upload failed. Please try again.");
         return;
       }
       const uploaded = uploadedFiles[0];
-      await uploadComplete(uploaded.key, uploaded.ufsUrl, file.name, file.size / (1024 * 1024));
+      await uploadComplete(
+        uploaded.key,
+        uploaded.ufsUrl,
+        file.name,
+        file.size / (1024 * 1024),
+      );
       setFileId(uploaded.key);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'An error occurred during upload');
+      setError(
+        err instanceof Error ? err.message : "An error occurred during upload",
+      );
     }
   };
 
@@ -78,13 +88,15 @@ export default function TranslatePdfModal({ isOpen, onClose }: TranslatePdfModal
     setIsProcessing(true);
     try {
       const res = await translatePdf(fileId, targetLanguage);
-      const suffix = `-${targetLanguage.toLowerCase().replace(/[^a-z0-9]/g, '')}`;
-      const downloadName = fileName ? fileName.replace(/\.pdf$/i, `${suffix}.pdf`) : `translated-${targetLanguage}.pdf`;
+      const suffix = `-${targetLanguage.toLowerCase().replace(/[^a-z0-9]/g, "")}`;
+      const downloadName = fileName
+        ? fileName.replace(/\.pdf$/i, `${suffix}.pdf`)
+        : `translated-${targetLanguage}.pdf`;
 
       setResult({ fileUrl: res.fileUrl, fileName: downloadName });
       void downloadFile(res.fileUrl, downloadName);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to translate PDF');
+      setError(err instanceof Error ? err.message : "Failed to translate PDF");
     } finally {
       setIsProcessing(false);
     }
@@ -95,8 +107,8 @@ export default function TranslatePdfModal({ isOpen, onClose }: TranslatePdfModal
   const handleClose = () => {
     if (isUploading || isProcessing) return;
     setFileId(null);
-    setFileName('');
-    setTargetLanguage('es');
+    setFileName("");
+    setTargetLanguage("es");
     setResult(null);
     setError(null);
     onClose();
@@ -141,8 +153,10 @@ export default function TranslatePdfModal({ isOpen, onClose }: TranslatePdfModal
 
           <div className="border-t border-[#FFE4E9] bg-[#FFF5F7] px-6 py-4 text-center sm:px-10">
             <p className="text-[13px] font-medium leading-relaxed text-slate-500">
-              <span aria-hidden className="mr-1.5">🔒</span>
-              Your files are secure and private. We never store your documents.
+              <span aria-hidden className="mr-1.5">
+                🔒
+              </span>
+             Your files are secure
             </p>
           </div>
         </div>
@@ -175,6 +189,9 @@ export default function TranslatePdfModal({ isOpen, onClose }: TranslatePdfModal
             <p className="mx-auto mt-2 max-w-md text-[15px] font-medium leading-relaxed text-slate-500">
               Select the target language for your PDF translation.
             </p>
+            <p className="mx-auto mt-1 text-sm font-medium text-red-500">
+              Translation may take a while for large PDFs.
+            </p>
           </div>
 
           <div className="px-6 pb-8 sm:px-10">
@@ -191,10 +208,10 @@ export default function TranslatePdfModal({ isOpen, onClose }: TranslatePdfModal
               </label>
               <select
                 value={targetLanguage}
-                onChange={e => setTargetLanguage(e.target.value)}
+                onChange={(e) => setTargetLanguage(e.target.value)}
                 className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-[15px] text-slate-800 focus:border-[#8B5CF6]/60 focus:outline-none focus:ring-2 focus:ring-[#8B5CF6]/20 transition-all cursor-pointer"
               >
-                {LANGUAGES.map(lang => (
+                {LANGUAGES.map((lang) => (
                   <option key={lang.code} value={lang.code}>
                     {lang.name}
                   </option>
@@ -208,14 +225,16 @@ export default function TranslatePdfModal({ isOpen, onClose }: TranslatePdfModal
               onClick={handleTranslate}
               className="w-full rounded-xl bg-[#8B5CF6] px-6 py-3.5 text-[15px] font-semibold text-white transition-all hover:bg-[#7C3AED] active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-70"
             >
-              {isProcessing ? 'Translating PDF…' : 'Translate PDF'}
+              {isProcessing ? "Translating PDF…" : "Translate PDF"}
             </button>
           </div>
 
           <div className="border-t border-[#FFE4E9] bg-[#FFF5F7] px-6 py-4 text-center sm:px-10">
             <p className="text-[13px] font-medium leading-relaxed text-slate-500">
-              <span aria-hidden className="mr-1.5">🔒</span>
-              Your files are secure and private. We never store your documents.
+              <span aria-hidden className="mr-1.5">
+                🔒
+              </span>
+             Your files are secure
             </p>
           </div>
         </div>
