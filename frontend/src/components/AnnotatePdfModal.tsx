@@ -1186,6 +1186,17 @@ export default function AnnotatePdfModal({
     [getUserTextboxes, setUserTextboxes],
   );
 
+  const deleteTextboxWithHistory = useCallback(
+    (id: string) => {
+      const current = getUserTextboxes();
+      if (!current.some((a) => a.id === id)) return;
+      const next = current.filter((a) => a.id !== id);
+      pushTextboxState(next);
+      setEditingAnnotation((prev) => (prev === id ? null : prev));
+    },
+    [getUserTextboxes, pushTextboxState],
+  );
+
   const handleUndoTextbox = useCallback(() => {
     if (textboxUndoStack.length === 0) return;
     const previous = textboxUndoStack[textboxUndoStack.length - 1];
@@ -2570,17 +2581,29 @@ export default function AnnotatePdfModal({
                                           !ann.isExtracted &&
                                           !ann.text.trim()
                                         ) {
-                                          const next =
-                                            getUserTextboxes().filter(
-                                              (a) => a.id !== ann.id,
-                                            );
-                                          pushTextboxState(next);
+                                          deleteTextboxWithHistory(ann.id);
+                                          return;
                                         }
                                         setEditingAnnotation(null);
                                       }}
                                       onKeyDown={(e) => {
-                                        if (e.key === "Escape")
+                                        if (e.key === "Escape") {
                                           setEditingAnnotation(null);
+                                          return;
+                                        }
+
+                                        // Delete the entire textbox even if it has text.
+                                        // Keeps normal Delete behavior unless Ctrl/Cmd is held.
+                                        if (
+                                          !ann.isExtracted &&
+                                          e.key === "Delete" &&
+                                          (e.ctrlKey || e.metaKey)
+                                        ) {
+                                          e.preventDefault();
+                                          deleteTextboxWithHistory(ann.id);
+                                          return;
+                                        }
+
                                         if (
                                           !ann.isExtracted &&
                                           !ann.text &&
@@ -2588,12 +2611,7 @@ export default function AnnotatePdfModal({
                                             e.key === "Delete")
                                         ) {
                                           e.preventDefault();
-                                          const next =
-                                            getUserTextboxes().filter(
-                                              (a) => a.id !== ann.id,
-                                            );
-                                          pushTextboxState(next);
-                                          setEditingAnnotation(null);
+                                          deleteTextboxWithHistory(ann.id);
                                         }
                                       }}
                                       className="relative z-10 h-full w-full min-h-[24px] resize-none rounded-[3px] border-2 border-[#007AFF] bg-transparent px-[2px] py-0 outline-none"
@@ -2609,7 +2627,14 @@ export default function AnnotatePdfModal({
                                     />
                                     {/* Annotation controls (user-added text only) */}
                                     {!ann.isExtracted && (
-                                      <div className="absolute -top-8 left-0 flex items-center gap-1 rounded-lg bg-white p-1 shadow-lg border border-slate-200">
+                                      <div
+                                        className="absolute -top-8 left-0 flex items-center gap-1 rounded-lg border border-slate-200 bg-white p-1 shadow-lg"
+                                        onMouseDown={(e) => {
+                                          // Prevent textarea blur before control click handlers run.
+                                          e.preventDefault();
+                                          e.stopPropagation();
+                                        }}
+                                      >
                                         <input
                                           type="color"
                                           value={ann.color}
@@ -2660,12 +2685,7 @@ export default function AnnotatePdfModal({
                                         <button
                                           onClick={(e) => {
                                             e.stopPropagation();
-                                            const next =
-                                              getUserTextboxes().filter(
-                                                (a) => a.id !== ann.id,
-                                              );
-                                            pushTextboxState(next);
-                                            setEditingAnnotation(null);
+                                            deleteTextboxWithHistory(ann.id);
                                           }}
                                           className="rounded p-0.5 text-slate-400 hover:bg-red-50 hover:text-red-500 transition-colors"
                                           title="Delete annotation"
