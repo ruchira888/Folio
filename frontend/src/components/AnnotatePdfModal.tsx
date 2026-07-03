@@ -121,6 +121,21 @@ interface TextLayerItem {
   width: number;
 }
 
+interface DragSelectionRect {
+  pageIndex: number;
+  startX: number;
+  startY: number;
+  currentX: number;
+  currentY: number;
+}
+
+interface HighlightPreviewRect {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
 /**
  * Convert PDF-point coordinates to CSS pixels in the page container.
  * Annotations are stored in PDF points; the canvas is rendered at RENDER_SCALE.
@@ -762,6 +777,12 @@ export default function AnnotatePdfModal({
   const [draggingSignature, setDraggingSignature] =
     useState<SavedSignature | null>(null);
   const [textboxDraft, setTextboxDraft] = useState<TextboxDraft | null>(null);
+  const [dragSelection, setDragSelection] = useState<DragSelectionRect | null>(
+    null,
+  );
+  const [highlightPreviewByPage, setHighlightPreviewByPage] = useState<
+    Record<number, HighlightPreviewRect[]>
+  >({});
 
   // ── Refs ──
   const canvasRefs = useRef<(HTMLCanvasElement | null)[]>([]);
@@ -1212,59 +1233,127 @@ export default function AnnotatePdfModal({
     [mode, scale, textAnnotations, extractingText],
   );
 
-  const handleTextLayerMouseUp = useCallback(
-    (pageIndex: number) => {
+  const intersectingTextRects = useCallback(
+    (
+      pageIndex: number,
+      rect: { left: number; top: number; right: number; bottom: number },
+    ): HighlightPreviewRect[] => {
+      const items = textLayerByPage[pageIndex] ?? [];
+      const output: HighlightPreviewRect[] = [];
+
+      for (const item of items) {
+        const width = Math.max(
+          2,
+          item.width || item.text.length * item.fontSize * 0.5,
+        );
+        const height = Math.max(4, item.fontSize * 1.15);
+        const left = item.left;
+        const top = item.top;
+        const right = left + width;
+        const bottom = top + height;
+
+        const intersects =
+          left <= rect.right &&
+          right >= rect.left &&
+          top <= rect.bottom &&
+          bottom >= rect.top;
+
+        if (intersects) {
+          output.push({ x: left, y: top, width, height });
+        }
+      }
+
+      return output;
+    },
+    [textLayerByPage],
+  );
+
+  const handleHighlightPointerDown = useCallback(
+    (e: React.MouseEvent, pageIndex: number) => {
       if (mode !== "highlight") return;
 
-      const selection = window.getSelection();
-      if (!selection) return;
+      const container = pageContainerRefs.current[pageIndex];
+      if (!container) return;
 
-      try {
-        if (selection.rangeCount === 0 || selection.isCollapsed) return;
+      e.preventDefault();
+      e.stopPropagation();
 
-        const range = selection.getRangeAt(0);
-        const pageContainer = pageContainerRefs.current[pageIndex];
-        if (!pageContainer) return;
+      window.getSelection()?.removeAllRanges();
 
-        if (!pageContainer.contains(range.commonAncestorContainer)) {
-          return;
-        }
+      const rect = container.getBoundingClientRect();
+      const pageWidth = rect.width / scale;
+      const pageHeight = rect.height / scale;
 
-        const displayScale = RENDER_SCALE * scale;
-        const pageRect = pageContainer.getBoundingClientRect();
-        const rects = Array.from(range.getClientRects()).filter(
-          (rect) => rect.width > 1 && rect.height > 1,
+      const startX = clamp((e.clientX - rect.left) / scale, 0, pageWidth);
+      const startY = clamp((e.clientY - rect.top) / scale, 0, pageHeight);
+
+      let currentX = startX;
+      let currentY = startY;
+
+      setDragSelection({ pageIndex, startX, startY, currentX, currentY });
+      setHighlightPreviewByPage((prev) => ({ ...prev, [pageIndex]: [] }));
+
+      const onMove = (me: MouseEvent) => {
+        window.getSelection()?.removeAllRanges();
+
+        currentX = clamp((me.clientX - rect.left) / scale, 0, pageWidth);
+        currentY = clamp((me.clientY - rect.top) / scale, 0, pageHeight);
+
+        setDragSelection((prev) =>
+          prev ? { ...prev, currentX, currentY } : prev,
         );
 
-        if (rects.length === 0) return;
+        const selectionRect = {
+          left: Math.min(startX, currentX),
+          top: Math.min(startY, currentY),
+          right: Math.max(startX, currentX),
+          bottom: Math.max(startY, currentY),
+        };
 
-        const added: MarkupAnnotation[] = rects
-          .map((rect) => {
-            const x = (rect.left - pageRect.left) / displayScale;
-            const y = (rect.top - pageRect.top) / displayScale;
-            const width = rect.width / displayScale;
-            const height = rect.height / displayScale;
+        const preview = intersectingTextRects(pageIndex, selectionRect);
+        setHighlightPreviewByPage((prev) => ({
+          ...prev,
+          [pageIndex]: preview,
+        }));
+      };
 
-            return {
-              id: generateId(),
-              pageIndex,
-              x,
-              y,
-              width,
-              height,
-              kind: activeMarkupKind,
-              color: activeMarkupColor,
-              opacity: activeMarkupOpacity,
-            };
-          })
-          .filter((mark) => mark.width > 0.5 && mark.height > 0.5);
+      const onUp = () => {
+        window.removeEventListener("mousemove", onMove);
+        window.removeEventListener("mouseup", onUp);
 
-        if (added.length > 0) {
+        window.getSelection()?.removeAllRanges();
+
+        const selectionRect = {
+          left: Math.min(startX, currentX),
+          top: Math.min(startY, currentY),
+          right: Math.max(startX, currentX),
+          bottom: Math.max(startY, currentY),
+        };
+
+        const hitRects = intersectingTextRects(pageIndex, selectionRect);
+
+        if (hitRects.length > 0) {
+          const added: MarkupAnnotation[] = hitRects.map((r) => ({
+            id: generateId(),
+            pageIndex,
+            x: r.x / RENDER_SCALE,
+            y: r.y / RENDER_SCALE,
+            width: r.width / RENDER_SCALE,
+            height: r.height / RENDER_SCALE,
+            kind: activeMarkupKind,
+            color: activeMarkupColor,
+            opacity: activeMarkupOpacity,
+          }));
+
           pushMarkupState([...markupAnnotations, ...added]);
         }
-      } finally {
-        selection.removeAllRanges();
-      }
+
+        setDragSelection(null);
+        setHighlightPreviewByPage((prev) => ({ ...prev, [pageIndex]: [] }));
+      };
+
+      window.addEventListener("mousemove", onMove);
+      window.addEventListener("mouseup", onUp);
     },
     [
       mode,
@@ -1272,6 +1361,7 @@ export default function AnnotatePdfModal({
       activeMarkupKind,
       activeMarkupColor,
       activeMarkupOpacity,
+      intersectingTextRects,
       markupAnnotations,
       pushMarkupState,
     ],
@@ -1664,6 +1754,8 @@ export default function AnnotatePdfModal({
     setUndoStack([]);
     setRedoStack([]);
     setTextboxDraft(null);
+    setDragSelection(null);
+    setHighlightPreviewByPage({});
     setExtractingText(false);
     setEditSessionActive(false);
     textExtractedRef.current = false;
@@ -2108,13 +2200,12 @@ export default function AnnotatePdfModal({
                       className="relative rounded-lg shadow-[0_2px_12px_rgba(0,0,0,0.08)] bg-white"
                       style={{ width: w, height: h }}
                       onClick={(e) => handlePageClick(e, pageIndex)}
-                      onMouseDown={(e) =>
-                        handleTextboxPointerDown(e, pageIndex)
-                      }
-                      onMouseUp={() => {
+                      onMouseDown={(e) => {
                         if (mode === "highlight") {
-                          handleTextLayerMouseUp(pageIndex);
+                          handleHighlightPointerDown(e, pageIndex);
+                          return;
                         }
+                        handleTextboxPointerDown(e, pageIndex);
                       }}
                       onDragOver={(e) => {
                         if (mode === "signature") e.preventDefault();
@@ -2139,12 +2230,11 @@ export default function AnnotatePdfModal({
 
                       {mode === "highlight" && (
                         <div
-                          className="absolute inset-0 z-20 select-text"
+                          className="absolute inset-0 z-20 select-none"
                           style={{
                             transform: `scale(${scale})`,
                             transformOrigin: "top left",
                           }}
-                          onMouseUp={() => handleTextLayerMouseUp(pageIndex)}
                         >
                           {(textLayerByPage[pageIndex] ?? []).map(
                             (item, idx) => (
@@ -2162,8 +2252,8 @@ export default function AnnotatePdfModal({
                                   color: "rgba(15,23,42,0.01)",
                                   whiteSpace: "pre",
                                   lineHeight: 1,
-                                  userSelect: "text",
-                                  WebkitUserSelect: "text",
+                                  userSelect: "none",
+                                  WebkitUserSelect: "none",
                                 }}
                               >
                                 {item.text}
@@ -2172,6 +2262,59 @@ export default function AnnotatePdfModal({
                           )}
                         </div>
                       )}
+
+                      {/* ── Drag selection preview (rectangle-based highlight selection) ── */}
+                      {mode === "highlight" &&
+                        dragSelection?.pageIndex === pageIndex && (
+                          <div
+                            className="pointer-events-none absolute z-[25] rounded-md border border-[#007AFF]/60 bg-[#007AFF]/10"
+                            style={{
+                              left:
+                                Math.min(
+                                  dragSelection.startX,
+                                  dragSelection.currentX,
+                                ) * scale,
+                              top:
+                                Math.min(
+                                  dragSelection.startY,
+                                  dragSelection.currentY,
+                                ) * scale,
+                              width: Math.max(
+                                1,
+                                Math.abs(
+                                  dragSelection.currentX - dragSelection.startX,
+                                ) * scale,
+                              ),
+                              height: Math.max(
+                                1,
+                                Math.abs(
+                                  dragSelection.currentY - dragSelection.startY,
+                                ) * scale,
+                              ),
+                            }}
+                          />
+                        )}
+
+                      {mode === "highlight" &&
+                        (highlightPreviewByPage[pageIndex] ?? []).map(
+                          (r, idx) => (
+                            <div
+                              key={`preview-${pageIndex}-${idx}`}
+                              className="pointer-events-none absolute z-[25] rounded-[2px]"
+                              style={{
+                                left: r.x * scale,
+                                top: r.y * scale,
+                                width: r.width * scale,
+                                height: r.height * scale,
+                                background: activeMarkupColor,
+                                opacity: Math.min(
+                                  activeMarkupOpacity + 0.12,
+                                  0.65,
+                                ),
+                              }}
+                            />
+                          ),
+                        )}
 
                       {/* ── Textbox placement preview ── */}
                       {textboxDraft?.pageIndex === pageIndex && (

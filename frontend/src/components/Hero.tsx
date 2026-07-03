@@ -81,8 +81,8 @@ export default function Hero() {
             <motion.p 
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
-              transition={{ delay: 2.4, duration: 1 }}
-              className="text-[15px] md:text-[16px] text-slate-500 font-medium max-w-sm leading-relaxed mb-8 font-sans"
+              transition={{ delay: 2.0, duration: 1 }}
+              className="text-[15px] md:text-[16px] text-slate-600 font-medium max-w-sm leading-relaxed mb-8 font-sans"
             >
               Everything you need to manage, edit,
               <br className="hidden sm:inline" />
