@@ -764,6 +764,12 @@ export default function AnnotatePdfModal({
   >({});
   const [undoStack, setUndoStack] = useState<MarkupAnnotation[][]>([]);
   const [redoStack, setRedoStack] = useState<MarkupAnnotation[][]>([]);
+  const [textboxUndoStack, setTextboxUndoStack] = useState<TextAnnotation[][]>(
+    [],
+  );
+  const [textboxRedoStack, setTextboxRedoStack] = useState<TextAnnotation[][]>(
+    [],
+  );
   const [applying, setApplying] = useState(false);
   const [extractingText, setExtractingText] = useState(false);
   const [editSessionActive, setEditSessionActive] = useState(false);
@@ -1159,6 +1165,45 @@ export default function AnnotatePdfModal({
     [markupAnnotations],
   );
 
+  const getUserTextboxes = useCallback(
+    () => textAnnotations.filter((a) => !a.isExtracted).map((a) => ({ ...a })),
+    [textAnnotations],
+  );
+
+  const setUserTextboxes = useCallback((userBoxes: TextAnnotation[]) => {
+    setTextAnnotations((prev) => {
+      const extracted = prev.filter((a) => !!a.isExtracted);
+      return [...extracted, ...userBoxes];
+    });
+  }, []);
+
+  const pushTextboxState = useCallback(
+    (nextUserBoxes: TextAnnotation[]) => {
+      setTextboxUndoStack((prev) => [...prev, getUserTextboxes()]);
+      setTextboxRedoStack([]);
+      setUserTextboxes(nextUserBoxes);
+    },
+    [getUserTextboxes, setUserTextboxes],
+  );
+
+  const handleUndoTextbox = useCallback(() => {
+    if (textboxUndoStack.length === 0) return;
+    const previous = textboxUndoStack[textboxUndoStack.length - 1];
+    setTextboxUndoStack((prev) => prev.slice(0, -1));
+    setTextboxRedoStack((prev) => [...prev, getUserTextboxes()]);
+    setUserTextboxes(previous);
+    setEditingAnnotation(null);
+  }, [textboxUndoStack, getUserTextboxes, setUserTextboxes]);
+
+  const handleRedoTextbox = useCallback(() => {
+    if (textboxRedoStack.length === 0) return;
+    const next = textboxRedoStack[textboxRedoStack.length - 1];
+    setTextboxRedoStack((prev) => prev.slice(0, -1));
+    setTextboxUndoStack((prev) => [...prev, getUserTextboxes()]);
+    setUserTextboxes(next);
+    setEditingAnnotation(null);
+  }, [textboxRedoStack, getUserTextboxes, setUserTextboxes]);
+
   const handleUndoMarkup = useCallback(() => {
     if (undoStack.length === 0) return;
     const previous = undoStack[undoStack.length - 1];
@@ -1487,14 +1532,14 @@ export default function AnnotatePdfModal({
           color: "#000000",
         };
 
-        setTextAnnotations((prev) => [...prev, newAnnotation]);
+        pushTextboxState([...getUserTextboxes(), newAnnotation]);
         setEditingAnnotation(newAnnotation.id);
       };
 
       window.addEventListener("mousemove", onMove);
       window.addEventListener("mouseup", onUp);
     },
-    [mode, scale],
+    [mode, scale, pushTextboxState, getUserTextboxes],
   );
 
   // ── Handle signature drag on page (reposition) ──
@@ -1753,6 +1798,8 @@ export default function AnnotatePdfModal({
     setTextLayerByPage({});
     setUndoStack([]);
     setRedoStack([]);
+    setTextboxUndoStack([]);
+    setTextboxRedoStack([]);
     setTextboxDraft(null);
     setDragSelection(null);
     setHighlightPreviewByPage({});
@@ -2043,6 +2090,27 @@ export default function AnnotatePdfModal({
                 {Math.round(activeMarkupOpacity * 100)}%
               </span>
             </div>
+          </div>
+        )}
+
+        {mode === "textbox" && (
+          <div className="flex items-center gap-2 border-b border-slate-200/80 bg-white px-5 py-2.5">
+            <button
+              type="button"
+              onClick={handleUndoTextbox}
+              disabled={textboxUndoStack.length === 0}
+              className="rounded px-2.5 py-1.5 text-xs font-semibold text-slate-700 transition-colors hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              Undo
+            </button>
+            <button
+              type="button"
+              onClick={handleRedoTextbox}
+              disabled={textboxRedoStack.length === 0}
+              className="rounded px-2.5 py-1.5 text-xs font-semibold text-slate-700 transition-colors hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              Redo
+            </button>
           </div>
         )}
 
@@ -2502,9 +2570,11 @@ export default function AnnotatePdfModal({
                                           !ann.isExtracted &&
                                           !ann.text.trim()
                                         ) {
-                                          setTextAnnotations((prev) =>
-                                            prev.filter((a) => a.id !== ann.id),
-                                          );
+                                          const next =
+                                            getUserTextboxes().filter(
+                                              (a) => a.id !== ann.id,
+                                            );
+                                          pushTextboxState(next);
                                         }
                                         setEditingAnnotation(null);
                                       }}
@@ -2518,9 +2588,11 @@ export default function AnnotatePdfModal({
                                             e.key === "Delete")
                                         ) {
                                           e.preventDefault();
-                                          setTextAnnotations((prev) =>
-                                            prev.filter((a) => a.id !== ann.id),
-                                          );
+                                          const next =
+                                            getUserTextboxes().filter(
+                                              (a) => a.id !== ann.id,
+                                            );
+                                          pushTextboxState(next);
                                           setEditingAnnotation(null);
                                         }
                                       }}
@@ -2588,11 +2660,11 @@ export default function AnnotatePdfModal({
                                         <button
                                           onClick={(e) => {
                                             e.stopPropagation();
-                                            setTextAnnotations((prev) =>
-                                              prev.filter(
+                                            const next =
+                                              getUserTextboxes().filter(
                                                 (a) => a.id !== ann.id,
-                                              ),
-                                            );
+                                              );
+                                            pushTextboxState(next);
                                             setEditingAnnotation(null);
                                           }}
                                           className="rounded p-0.5 text-slate-400 hover:bg-red-50 hover:text-red-500 transition-colors"
@@ -2640,11 +2712,7 @@ export default function AnnotatePdfModal({
                                         </button>
                                       ) : (
                                         <div
-                                          className={`h-full rounded-md px-2 py-1 transition-all ${
-                                            mode === "textbox"
-                                              ? "border border-[#007AFF]/35 bg-transparent shadow-none hover:border-[#007AFF]/55 hover:bg-transparent"
-                                              : "border border-[#007AFF]/25 bg-transparent hover:border-[#007AFF]/40 hover:bg-transparent"
-                                          }`}
+                                          className="h-full rounded-md px-2 py-1 transition-all"
                                           onClick={(e) => {
                                             e.stopPropagation();
                                             setEditingAnnotation(ann.id);
