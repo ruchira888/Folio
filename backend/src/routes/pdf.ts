@@ -24,11 +24,13 @@ import { addPageNumbersService } from "../services/pageNumberService";
 import { exportPdfToMarkdown } from "../services/markdownExportService";
 import { generateThumbnails } from "../services/thumbnailService";
 import { logger } from "../logger";
-import { GoogleTranslator } from "../services/translation/providers/GoogleTranslator";
+import { TranslatePlusTranslator } from "../services/translation/providers/TranslatePlusTranslator";
 import { PdfTranslationService } from "../services/translation/PdfTranslationService";
 
-const googleTranslator = new GoogleTranslator();
-const pdfTranslationService = new PdfTranslationService(googleTranslator);
+const translatePlusTranslator = new TranslatePlusTranslator();
+const pdfTranslationService = new PdfTranslationService(
+  translatePlusTranslator,
+);
 
 export const pdfRouter = express.Router();
 //expres ratelimit tracks req per ip add alzo uses inmemory store to req
@@ -293,12 +295,10 @@ pdfRouter.post(
         return;
       }
       if (!Array.isArray(pagesToDelete) || pagesToDelete.length === 0) {
-        res
-          .status(400)
-          .json({
-            success: false,
-            error: "pagesToDelete must be a non-empty array",
-          });
+        res.status(400).json({
+          success: false,
+          error: "pagesToDelete must be a non-empty array",
+        });
         return;
       }
 
