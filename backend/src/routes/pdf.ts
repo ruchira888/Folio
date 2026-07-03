@@ -14,6 +14,8 @@ import {
   WatermarkPdfRequestBody,
   TranslatePdfRequestBody,
   TranslatePdfResult,
+  MergePdfRequestBody,
+  MergePdfResult,
 } from "../types";
 import { summarizePdf } from "../services/summaryService";
 import { deletePagesService } from "../services/deletePagesService";
@@ -26,6 +28,7 @@ import { generateThumbnails } from "../services/thumbnailService";
 import { logger } from "../logger";
 import { TranslatePlusTranslator } from "../services/translation/providers/TranslatePlusTranslator";
 import { PdfTranslationService } from "../services/translation/PdfTranslationService";
+import { mergePdfService } from "../services/mergePdfService";
 
 const translatePlusTranslator = new TranslatePlusTranslator();
 const pdfTranslationService = new PdfTranslationService(
@@ -321,6 +324,82 @@ pdfRouter.post(
         data: result,
       } as ApiResponse<{ fileUrl: string; fileKey: string }>);
     } catch (err) {
+      next(err);
+    }
+  },
+);
+
+// ─── MERGE PDF ───────────────────────────────────────────────────────────────
+
+pdfRouter.post(
+  "/merge",
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { fileIds }: MergePdfRequestBody = req.body;
+
+      if (!Array.isArray(fileIds) || fileIds.length < 2) {
+        res.status(400).json({
+          success: false,
+          error: "Please provide at least 2 PDF file IDs to merge.",
+        });
+        return;
+      }
+
+      if (fileIds.length > 10) {
+        res.status(400).json({
+          success: false,
+          error: "You can merge up to 10 PDFs at a time.",
+        });
+        return;
+      }
+
+      const result = await mergePdfService(fileIds);
+
+      logger.info(`Merge complete for ${fileIds.length} PDFs`);
+
+      res.json({
+        success: true,
+        data: result,
+      } as ApiResponse<MergePdfResult>);
+    } catch (err: any) {
+      if (
+        typeof err?.message === "string" &&
+        err.message.startsWith("MERGE_FILE_NOT_FOUND:")
+      ) {
+        res.status(404).json({
+          success: false,
+          error: "One or more files were not found or have expired.",
+        });
+        return;
+      }
+
+      if (
+        typeof err?.message === "string" &&
+        err.message.startsWith("MERGE_FILE_TOO_LARGE:")
+      ) {
+        res.status(413).json({
+          success: false,
+          error: "Each file must be 25MB or smaller.",
+        });
+        return;
+      }
+
+      if (err?.message === "MERGE_MIN_FILES") {
+        res.status(400).json({
+          success: false,
+          error: "Please provide at least 2 PDFs to merge.",
+        });
+        return;
+      }
+
+      if (err?.message === "MERGE_MAX_FILES") {
+        res.status(400).json({
+          success: false,
+          error: "You can merge up to 10 PDFs at a time.",
+        });
+        return;
+      }
+
       next(err);
     }
   },

@@ -1,19 +1,20 @@
-import { BrowserRouter, Routes, Route } from 'react-router-dom';
-import Navbar from './components/Navbar';
-import Home from './pages/Home';
-import ToolsPage from './pages/ToolsPage';
-import SummarizeModal from './components/SummarizeModal';
-import GenericToolModal from './components/GenericToolModal';
-import DeletePagesModal from './components/DeletePagesModal';
-import ProtectPdfModal from './components/ProtectPdfModal';
-import DarkModePdfModal from './components/DarkModePdfModal';
-import ConvertToMarkdownModal from './components/ConvertToMarkdownModal';
-import WatermarkPdfModal from './components/WatermarkPdfModal';
-import PageNumbersModal from './components/PageNumbersModal';
-import TranslatePdfModal from './components/TranslatePdfModal';
-import AnnotatePdfModal from './components/AnnotatePdfModal';
-import { useState } from 'react';
-import { isModalTool, type ToolType } from './config/toolConfigs';
+import { BrowserRouter, Routes, Route } from "react-router-dom";
+import Navbar from "./components/Navbar";
+import Home from "./pages/Home";
+import ToolsPage from "./pages/ToolsPage";
+import SummarizeModal from "./components/SummarizeModal";
+import GenericToolModal from "./components/GenericToolModal";
+import DeletePagesModal from "./components/DeletePagesModal";
+import ProtectPdfModal from "./components/ProtectPdfModal";
+import DarkModePdfModal from "./components/DarkModePdfModal";
+import ConvertToMarkdownModal from "./components/ConvertToMarkdownModal";
+import WatermarkPdfModal from "./components/WatermarkPdfModal";
+import PageNumbersModal from "./components/PageNumbersModal";
+import TranslatePdfModal from "./components/TranslatePdfModal";
+import AnnotatePdfModal from "./components/AnnotatePdfModal";
+import MergePdfModal from "./components/MergePdfModal";
+import { useState } from "react";
+import { isModalTool, type ToolType } from "./config/toolConfigs";
 
 function App() {
   const [activeTool, setActiveTool] = useState<ToolType | null>(null);
@@ -34,7 +35,10 @@ function App() {
             playsInline
             className="w-full h-full object-cover select-none"
           >
-            <source src="https://res.cloudinary.com/dnwjrhlze/video/upload/v1782305324/_seed1739660999_icbirx.mp4" type="video/mp4" />
+            <source
+              src="https://res.cloudinary.com/dnwjrhlze/video/upload/v1782305324/_seed1739660999_icbirx.mp4"
+              type="video/mp4"
+            />
             Your browser does not support the video tag.
           </video>
           {/* Soft radial glow for text readability */}
@@ -51,7 +55,10 @@ function App() {
         <main className="grow flex flex-col items-center w-full relative z-10">
           <Routes>
             <Route path="/" element={<Home setActiveTool={setActiveTool} />} />
-            <Route path="/tools" element={<ToolsPage setActiveTool={setActiveTool} />} />
+            <Route
+              path="/tools"
+              element={<ToolsPage setActiveTool={setActiveTool} />}
+            />
           </Routes>
         </main>
 
@@ -62,57 +69,72 @@ function App() {
 
         {/* Modals */}
         <SummarizeModal
-          isOpen={activeTool === 'summarize'}
+          isOpen={activeTool === "summarize"}
           onClose={closeModal}
         />
 
+        <MergePdfModal isOpen={activeTool === "merge"} onClose={closeModal} />
+
         <DeletePagesModal
-          isOpen={activeTool === 'delete-pages'}
+          isOpen={activeTool === "delete-pages"}
           onClose={closeModal}
         />
 
         <ProtectPdfModal
-          isOpen={activeTool === 'protect'}
+          isOpen={activeTool === "protect"}
           onClose={closeModal}
         />
 
         <DarkModePdfModal
-          isOpen={activeTool === 'dark-mode'}
+          isOpen={activeTool === "dark-mode"}
           onClose={closeModal}
         />
 
         <ConvertToMarkdownModal
-          isOpen={activeTool === 'convert'}
+          isOpen={activeTool === "convert"}
           onClose={closeModal}
         />
 
         <WatermarkPdfModal
-          isOpen={activeTool === 'watermark'}
+          isOpen={activeTool === "watermark"}
           onClose={closeModal}
         />
 
         <PageNumbersModal
-          isOpen={activeTool === 'page-numbers'}
+          isOpen={activeTool === "page-numbers"}
           onClose={closeModal}
         />
 
         <TranslatePdfModal
-          isOpen={activeTool === 'translate'}
+          isOpen={activeTool === "translate"}
           onClose={closeModal}
         />
 
         <AnnotatePdfModal
-          isOpen={activeTool === 'annotate'}
+          isOpen={activeTool === "annotate"}
           onClose={closeModal}
         />
 
-        {activeTool && !['summarize', 'delete-pages', 'protect', 'dark-mode', 'convert', 'watermark', 'page-numbers', 'translate', 'annotate'].includes(activeTool) && isModalTool(activeTool) && (
-          <GenericToolModal
-            isOpen
-            toolType={activeTool as Exclude<ToolType, 'summarize'>}
-            onClose={closeModal}
-          />
-        )}
+        {activeTool &&
+          ![
+            "summarize",
+            "merge",
+            "delete-pages",
+            "protect",
+            "dark-mode",
+            "convert",
+            "watermark",
+            "page-numbers",
+            "translate",
+            "annotate",
+          ].includes(activeTool) &&
+          isModalTool(activeTool) && (
+            <GenericToolModal
+              isOpen
+              toolType={activeTool as Exclude<ToolType, "summarize">}
+              onClose={closeModal}
+            />
+          )}
       </div>
     </BrowserRouter>
   );
