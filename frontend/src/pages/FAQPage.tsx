@@ -189,7 +189,7 @@ export default function FAQPage() {
             >
               Everything you need to know about Folio.
             </motion.p>
-            <motion.p
+            {/* <motion.p
               initial={{ opacity: 0, y: 15, filter: "blur(10px)" }}
               animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
               transition={{ delay: 1.3, duration: 1, ease: [0.16, 1, 0.3, 1] }}
@@ -199,7 +199,7 @@ export default function FAQPage() {
               <Link to="/contact" className="text-[#8B5CF6] font-bold hover:underline decoration-2 underline-offset-4">
                 Contact us
               </Link>.
-            </motion.p>
+            </motion.p> */}
           </div>
         </div>
 

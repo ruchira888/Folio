@@ -3,6 +3,7 @@ import Navbar from "./components/Navbar";
 import Home from "./pages/Home";
 import ToolsPage from "./pages/ToolsPage";
 import FAQPage from "./pages/FAQPage";
+import SupportSection from "./components/SupportSection";
 
 import SummarizeModal from "./components/SummarizeModal";
 import GenericToolModal from "./components/GenericToolModal";
@@ -63,6 +64,7 @@ function App() {
             />
             <Route path="/faq" element={<FAQPage />} />
           </Routes>
+          <SupportSection />
         </main>
 
         {/* Minimal copyright footer */}
