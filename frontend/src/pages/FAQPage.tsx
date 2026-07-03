@@ -12,48 +12,48 @@ const faqs = [
   {
     question: "How does Folio work?",
     answer:
-      "Simply upload your PDF files to our secure servers, select the tool you need (like merge, split, or compress), and download the processed file in seconds. Our AI-powered tools even help with summaries and translations.",
+      "Simply upload your PDF files , select the tool you need and download the processed file in seconds. Our AI-powered tools even help with summaries",
   },
   {
     question: "Is Folio secure?",
     answer:
-      "Yes, security is our top priority. We use industry-standard encryption for all file transfers, and your files are automatically deleted from our servers after processing. We never store your documents.",
+      "Security is our top priority. All uploaded files are processed securely and automatically deleted within 45 minutes of upload",
   },
   {
-    question: "Can Folio integrate with other software?",
+    question: "What happens to my files after upload?",
     answer:
-      "Currently, Folio works as a standalone web application. We are actively working on browser extensions and integrations with popular cloud storage services like Google Drive and Dropbox.",
+      "Files are stored temporarily to process your request and are automatically removed within 45 minutes. Once deleted, they cannot be recovered."
+  },
+  {
+    question: "Do I need to create an account?",
+    answer:
+      "No.Folio tools can be used without creating an account. Simply upload your PDF and start working immediately."
+  },
+  {
+    question: "Does Folio use AI?",
+    answer:
+      "Yes. Features such as PDF Summarization use AI to help you extract key insights faster while preserving the original document."
+  },
+  {
+    question: "Can I annotate PDFs online?",
+    answer:
+      "Yes. You can highlight, underline, strike through text, draw freehand, and add notes directly to your PDF."
   },
   {
     question: "What file formats does Folio support?",
     answer:
-      "While our primary focus is PDF, we support converting PDF to and from Word, Excel, PowerPoint, JPEG, and Markdown formats.",
-  },
-  {
-    question: "How is my data stored?",
-    answer:
-      "We don't store your documents long-term. Files are kept in a temporary, encrypted storage area only while they are being processed and for a short window afterward so you can download them. After that, they are permanently purged.",
+      "Folio primarily supports PDF documents and can convert PDFs to and from formats such as JPG, Markdown, and common image formats."
   },
   {
     question: "Can I use Folio on my mobile device?",
     answer:
-      "Yes! Folio is fully responsive and works perfectly on smartphones and tablets through your mobile browser.",
+      "Yes. Folio is fully responsive and works on desktops, tablets, and mobile devices through any modern web browser."
   },
   {
-    question: "Is there a free plan?",
+    question: "Are my documents shared with anyone?",
     answer:
-      "Folio offers a generous free tier with access to most tools. For power users needing higher file size limits and bulk processing, we offer a Pro plan.",
-  },
-  {
-    question: "How do I cancel my subscription?",
-    answer:
-      "You can cancel your subscription at any time from your account settings. You'll continue to have access to Pro features until the end of your current billing period.",
-  },
-  {
-    question: "Who can I contact for more support?",
-    answer:
-      "Our support team is available via email at support@folio.plus. You can also reach out through our contact form or live chat during business hours.",
-  },
+      "No. Your files remain private and are only used to provide the requested PDF processing service. We do not share your documents with third parties."
+  }
 ];
 
 function FAQItem({ question, answer, isOpen, onClick, index }: { 

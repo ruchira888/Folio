@@ -249,7 +249,7 @@ export const TOOL_MODAL_CONFIG: Record<ToolType, ToolModalConfig> = {
     tagColor: "text-[#4F46E5]",
   },
   "convert-pdf": {
-    title: "Convert PDF",
+    title: "Convert PDF to JPG",
     description: "Convert your PDF to Word, Excel, PPT, JPG and more.",
     icon: FileText,
     iconBg: "bg-white",

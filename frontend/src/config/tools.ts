@@ -125,7 +125,7 @@ export const TOOLS: ToolItem[] = [
   {
     id: 'convert-pdf',
     category: 'CONVERT',
-    title: 'Convert PDF',
+    title: 'Convert PDF to JPG',
     description: 'Convert your PDF to Word, Excel, PPT, JPG and more.',
     tag: 'Multiple Formats',
     tagIcon: FileText,

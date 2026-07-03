@@ -37,16 +37,14 @@ export default function Navbar() {
         <div className="hidden md:flex items-center gap-7 text-[14px] font-medium text-slate-500">
           <Link
             to="/"
-            className={`hover:text-slate-800 transition-colors no-underline ${isHome ? "text-slate-900 font-semibold" : ""}`}
+            className={`hover:text-[#8B5CF6] transition-colors no-underline ${isHome ? "text-[#8B5CF6] font-bold" : ""}`}
           >
             Home
           </Link>
-          <button className="flex items-center gap-1 hover:text-slate-800 transition-colors">
-            Features <ChevronDown className="w-3.5 h-3.5 opacity-60" />
-          </button>
+
           <Link
             to="/tools"
-            className={`flex items-center gap-1 hover:text-slate-800 transition-colors no-underline ${isTools ? "text-slate-900 font-semibold" : ""}`}
+            className={`flex items-center gap-1 hover:text-[#8B5CF6] transition-colors no-underline ${isTools ? "text-[#8B5CF6] font-bold" : ""}`}
           >
             Tools <ChevronDown className="w-3.5 h-3.5 opacity-60" />
           </Link>
@@ -56,19 +54,18 @@ export default function Navbar() {
           >
             FAQ
           </Link>
-          <a href="#about" className="hover:text-slate-800 transition-colors">
-            About
-          </a>
         </div>
 
         {/* Auth buttons */}
         <div className="flex items-center gap-2">
-          <button className="text-[14px] font-medium text-slate-600 hover:text-slate-900 px-4 py-2 transition-colors">
+          {/* <button className="text-[14px] font-medium text-slate-600 hover:text-slate-900 px-4 py-2 transition-colors">
             Log in
-          </button>
-          <button className="bg-[#1D3557] text-white text-[13px] font-semibold px-5 py-2.5 rounded-full hover:bg-[#15294a] hover:shadow-lg hover:shadow-slate-800/10 active:scale-[0.98] transition-all">
-            Get Started
-          </button>
+          </button> */}
+          <Link to="/">
+            <button className="bg-[#1D3557] text-white text-[13px] font-semibold px-5 py-2.5 rounded-full hover:bg-[#15294a] hover:shadow-lg hover:shadow-slate-800/10 active:scale-[0.98] transition-all cursor-pointer">
+              Get Started
+            </button>
+          </Link>
         </div>
       </div>
     </motion.nav>
