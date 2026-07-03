@@ -4,20 +4,22 @@ export default function Hero() {
   const headline = "Your all-in-one PDF toolkit.";
 
   const charVariants = {
-    hidden: { opacity: 0, y: 10 },
+    hidden: { opacity: 0, y: 10, filter: "blur(10px)" },
     visible: { 
       opacity: 1, 
       y: 0,
-      transition: { duration: 0.5, ease: [0.22, 1, 0.36, 1] }
+      filter: "blur(0px)",
+      transition: { duration: 0.6, ease: [0.22, 1, 0.36, 1] }
     }
   };
 
   const wordVariants = {
-    hidden: { opacity: 0, y: 5 },
+    hidden: { opacity: 0, y: 5, filter: "blur(10px)" },
     visible: { 
       opacity: 1, 
       y: 0,
-      transition: { duration: 0.6, ease: [0.22, 1, 0.36, 1] }
+      filter: "blur(0px)",
+      transition: { duration: 0.7, ease: [0.22, 1, 0.36, 1] }
     }
   };
 
@@ -79,9 +81,9 @@ export default function Hero() {
 
             {/* Description Fade in */}
             <motion.p 
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ delay: 2.0, duration: 1 }}
+              initial={{ opacity: 0, y: 10, filter: "blur(8px)" }}
+              animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
+              transition={{ delay: 2.2, duration: 1, ease: [0.22, 1, 0.36, 1] }}
               className="text-[15px] md:text-[16px] text-slate-600 font-medium max-w-sm leading-relaxed mb-8 font-sans"
             >
               Everything you need to manage, edit,
@@ -94,9 +96,9 @@ export default function Hero() {
 
           {/* Right: Bird silhouettes */}
           <motion.div 
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 0.6 }}
-            transition={{ delay: 2.8, duration: 1.5 }}
+            initial={{ opacity: 0, filter: "blur(10px)" }}
+            animate={{ opacity: 0.6, filter: "blur(0px)" }}
+            transition={{ delay: 2.8, duration: 1.5, ease: [0.22, 1, 0.36, 1] }}
             className="hidden md:flex items-start pt-8 pr-8 select-none pointer-events-none"
           >
             <svg width="120" height="90" viewBox="0 0 120 90" fill="none" xmlns="http://www.w3.org/2000/svg">

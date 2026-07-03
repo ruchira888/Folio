@@ -2,6 +2,7 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import Navbar from "./components/Navbar";
 import Home from "./pages/Home";
 import ToolsPage from "./pages/ToolsPage";
+import FAQPage from "./pages/FAQPage";
 import SummarizeModal from "./components/SummarizeModal";
 import GenericToolModal from "./components/GenericToolModal";
 import DeletePagesModal from "./components/DeletePagesModal";
@@ -59,6 +60,7 @@ function App() {
               path="/tools"
               element={<ToolsPage setActiveTool={setActiveTool} />}
             />
+            <Route path="/faq" element={<FAQPage />} />
           </Routes>
         </main>
 
