@@ -1217,54 +1217,54 @@ export default function AnnotatePdfModal({
       if (mode !== "highlight") return;
 
       const selection = window.getSelection();
-      if (!selection || selection.rangeCount === 0 || selection.isCollapsed)
-        return;
+      if (!selection) return;
 
-      const range = selection.getRangeAt(0);
-      const pageContainer = pageContainerRefs.current[pageIndex];
-      if (!pageContainer) return;
+      try {
+        if (selection.rangeCount === 0 || selection.isCollapsed) return;
 
-      if (!pageContainer.contains(range.commonAncestorContainer)) {
-        return;
-      }
+        const range = selection.getRangeAt(0);
+        const pageContainer = pageContainerRefs.current[pageIndex];
+        if (!pageContainer) return;
 
-      const displayScale = RENDER_SCALE * scale;
-      const pageRect = pageContainer.getBoundingClientRect();
-      const rects = Array.from(range.getClientRects()).filter(
-        (rect) => rect.width > 1 && rect.height > 1,
-      );
+        if (!pageContainer.contains(range.commonAncestorContainer)) {
+          return;
+        }
 
-      if (rects.length === 0) {
+        const displayScale = RENDER_SCALE * scale;
+        const pageRect = pageContainer.getBoundingClientRect();
+        const rects = Array.from(range.getClientRects()).filter(
+          (rect) => rect.width > 1 && rect.height > 1,
+        );
+
+        if (rects.length === 0) return;
+
+        const added: MarkupAnnotation[] = rects
+          .map((rect) => {
+            const x = (rect.left - pageRect.left) / displayScale;
+            const y = (rect.top - pageRect.top) / displayScale;
+            const width = rect.width / displayScale;
+            const height = rect.height / displayScale;
+
+            return {
+              id: generateId(),
+              pageIndex,
+              x,
+              y,
+              width,
+              height,
+              kind: activeMarkupKind,
+              color: activeMarkupColor,
+              opacity: activeMarkupOpacity,
+            };
+          })
+          .filter((mark) => mark.width > 0.5 && mark.height > 0.5);
+
+        if (added.length > 0) {
+          pushMarkupState([...markupAnnotations, ...added]);
+        }
+      } finally {
         selection.removeAllRanges();
-        return;
       }
-
-      const added: MarkupAnnotation[] = rects
-        .map((rect) => {
-          const x = (rect.left - pageRect.left) / displayScale;
-          const y = (rect.top - pageRect.top) / displayScale;
-          const width = rect.width / displayScale;
-          const height = rect.height / displayScale;
-
-          return {
-            id: generateId(),
-            pageIndex,
-            x,
-            y,
-            width,
-            height,
-            kind: activeMarkupKind,
-            color: activeMarkupColor,
-            opacity: activeMarkupOpacity,
-          };
-        })
-        .filter((mark) => mark.width > 0.5 && mark.height > 0.5);
-
-      if (added.length > 0) {
-        pushMarkupState([...markupAnnotations, ...added]);
-      }
-
-      selection.removeAllRanges();
     },
     [
       mode,
@@ -2111,6 +2111,11 @@ export default function AnnotatePdfModal({
                       onMouseDown={(e) =>
                         handleTextboxPointerDown(e, pageIndex)
                       }
+                      onMouseUp={() => {
+                        if (mode === "highlight") {
+                          handleTextLayerMouseUp(pageIndex);
+                        }
+                      }}
                       onDragOver={(e) => {
                         if (mode === "signature") e.preventDefault();
                       }}
@@ -2209,77 +2214,79 @@ export default function AnnotatePdfModal({
                         />
                       )}
 
-                      {/* ── Highlight / underline overlays ── */}
-                      {markupAnnotations
-                        .filter((m) => m.pageIndex === pageIndex)
-                        .map((m) => (
-                          <div
-                            key={m.id}
-                            className="pointer-events-none absolute z-[5]"
-                            style={{
-                              left: pdfPointsToCss(m.x, displayScale),
-                              top: pdfPointsToCss(m.y, displayScale),
-                              width: pdfPointsToCss(m.width, displayScale),
-                              height: pdfPointsToCss(m.height, displayScale),
-                            }}
-                          >
-                            {m.kind === "highlight" && (
-                              <div
-                                className="h-full w-full rounded-[2px]"
-                                style={{
-                                  background: m.color,
-                                  opacity: m.opacity,
-                                }}
-                              />
-                            )}
+                      {/* ── Dedicated highlight overlay layer (above text layer) ── */}
+                      <div className="pointer-events-none absolute inset-0 z-30">
+                        {markupAnnotations
+                          .filter((m) => m.pageIndex === pageIndex)
+                          .map((m) => (
+                            <div
+                              key={m.id}
+                              className="pointer-events-none absolute"
+                              style={{
+                                left: pdfPointsToCss(m.x, displayScale),
+                                top: pdfPointsToCss(m.y, displayScale),
+                                width: pdfPointsToCss(m.width, displayScale),
+                                height: pdfPointsToCss(m.height, displayScale),
+                              }}
+                            >
+                              {m.kind === "highlight" && (
+                                <div
+                                  className="h-full w-full rounded-[2px]"
+                                  style={{
+                                    background: m.color,
+                                    opacity: m.opacity,
+                                  }}
+                                />
+                              )}
 
-                            {m.kind === "underline" && (
-                              <div
-                                className="absolute left-0 right-0"
-                                style={{
-                                  bottom: 1,
-                                  height: 2,
-                                  background: m.color,
-                                  opacity: m.opacity,
-                                }}
-                              />
-                            )}
+                              {m.kind === "underline" && (
+                                <div
+                                  className="absolute left-0 right-0"
+                                  style={{
+                                    bottom: 1,
+                                    height: 2,
+                                    background: m.color,
+                                    opacity: m.opacity,
+                                  }}
+                                />
+                              )}
 
-                            {m.kind === "strikeout" && (
-                              <div
-                                className="absolute left-0 right-0"
-                                style={{
-                                  top: "50%",
-                                  transform: "translateY(-50%)",
-                                  height: 2,
-                                  background: m.color,
-                                  opacity: m.opacity,
-                                }}
-                              />
-                            )}
+                              {m.kind === "strikeout" && (
+                                <div
+                                  className="absolute left-0 right-0"
+                                  style={{
+                                    top: "50%",
+                                    transform: "translateY(-50%)",
+                                    height: 2,
+                                    background: m.color,
+                                    opacity: m.opacity,
+                                  }}
+                                />
+                              )}
 
-                            {m.kind === "squiggly" && (
-                              <div
-                                className="absolute bottom-0 left-0 right-0 h-[6px] overflow-hidden"
-                                style={{ opacity: m.opacity }}
-                              >
-                                <svg
-                                  width="100%"
-                                  height="6"
-                                  viewBox="0 0 100 6"
-                                  preserveAspectRatio="none"
+                              {m.kind === "squiggly" && (
+                                <div
+                                  className="absolute bottom-0 left-0 right-0 h-[6px] overflow-hidden"
+                                  style={{ opacity: m.opacity }}
                                 >
-                                  <path
-                                    d="M0 4 Q2 0 4 4 T8 4 T12 4 T16 4 T20 4 T24 4 T28 4 T32 4 T36 4 T40 4 T44 4 T48 4 T52 4 T56 4 T60 4 T64 4 T68 4 T72 4 T76 4 T80 4 T84 4 T88 4 T92 4 T96 4 T100 4"
-                                    fill="none"
-                                    stroke={m.color}
-                                    strokeWidth="1.4"
-                                  />
-                                </svg>
-                              </div>
-                            )}
-                          </div>
-                        ))}
+                                  <svg
+                                    width="100%"
+                                    height="6"
+                                    viewBox="0 0 100 6"
+                                    preserveAspectRatio="none"
+                                  >
+                                    <path
+                                      d="M0 4 Q2 0 4 4 T8 4 T12 4 T16 4 T20 4 T24 4 T28 4 T32 4 T36 4 T40 4 T44 4 T48 4 T52 4 T56 4 T60 4 T64 4 T68 4 T72 4 T76 4 T80 4 T84 4 T88 4 T92 4 T96 4 T100 4"
+                                      fill="none"
+                                      stroke={m.color}
+                                      strokeWidth="1.4"
+                                    />
+                                  </svg>
+                                </div>
+                              )}
+                            </div>
+                          ))}
+                      </div>
 
                       {/* ── Text Annotation Overlays ── */}
                       {(mode === "edit" || mode === "textbox") &&
