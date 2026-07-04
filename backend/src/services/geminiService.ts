@@ -1,54 +1,62 @@
 import { logger } from "../logger";
 
-export const callGemini=async(prompt:string):Promise<string>=>{
-  const apiKey = process.env.GEMINI_API_KEY
-  if (!apiKey) {
-    throw new Error('GEMINI_API_KEY not set in environment')
+function getGroqApiKey(): string {
+  const key = process.env.GROQ_API_KEY || process.env.GEMINI_API_KEY;
+  if (!key || !key.trim()) {
+    throw new Error("GROQ_API_KEY (or GEMINI_API_KEY) not set in environment");
   }
+  return key.trim();
+}
+
+export const callGemini = async (prompt: string): Promise<string> => {
+  const apiKey = getGroqApiKey();
 
   // Using Groq API (OpenAI-compatible)
-  const url = `https://api.groq.com/openai/v1/chat/completions`
-  
-  const res=await fetch(url,{
-    method:'POST',
-    headers:{
-      "Content-Type":"application/json",
-      "Authorization": `Bearer ${apiKey}`
+  const url = `https://api.groq.com/openai/v1/chat/completions`;
+
+  const res = await fetch(url, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${apiKey}`,
     },
-    body:JSON.stringify({
+    body: JSON.stringify({
       model: "llama-3.3-70b-versatile",
       messages: [{ role: "user", content: prompt }],
       temperature: 0.3,
-      max_tokens: 1024
-    })
-  })
+      max_tokens: 1024,
+    }),
+  });
 
-  if(res.status==429)//too many req
+  if (res.status == 429) //too many req
   {
-    throw new Error('RATE_LIMITED')
+    throw new Error("RATE_LIMITED");
   }
-  if(!res.ok){
-    let errorDetails = 'Unknown error'
+  if (!res.ok) {
+    let errorDetails = "Unknown error";
     try {
-      const err = await res.json()
-      errorDetails = JSON.stringify(err)
-      logger.error(`Groq API error (${res.status}):`, err)
+      const err = await res.json();
+      errorDetails = JSON.stringify(err);
+      logger.error(`Groq API error (${res.status}):`, err);
     } catch (e) {
-      const text = await res.text()
-      errorDetails = text
-      logger.error(`Groq API error (${res.status}):`, text)
+      const text = await res.text();
+      errorDetails = text;
+      logger.error(`Groq API error (${res.status}):`, text);
     }
-    throw new Error(`Groq API failed: ${errorDetails}`)
+    throw new Error(`Groq API failed: ${errorDetails}`);
   }
 
-  const data = await res.json() as any
-  const text = data.choices?.[0]?.message?.content
+  const data = (await res.json()) as any;
+  const text = data.choices?.[0]?.message?.content;
 
   if (!text) {
-    logger.error(`Groq returned empty content. Response:`, JSON.stringify(data))
-    throw new Error('Empty response from Groq: ' + JSON.stringify(data))
+    logger.error(
+      `Groq returned empty content. Response:`,
+      JSON.stringify(data),
+    );
+    throw new Error("Empty response from Groq: " + JSON.stringify(data));
   }
-  
-  logger.info(`Groq response received: ${text.substring(0, 100)}...`)
-  return text
-}
+
+  logger.info(`Groq response received: ${text.substring(0, 100)}...`);
+  return text;
+};
