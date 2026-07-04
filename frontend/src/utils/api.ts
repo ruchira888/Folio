@@ -76,7 +76,7 @@ export async function getFileMetadata(fileId: string): Promise<FileRecord> {
 }
 
 /**
- * Summarize PDF using Gemini AI
+ * Summarize PDF using Groq AI
  * Extracts text from PDF and generates summary
  */
 export async function summarizePdf(fileId: string): Promise<SummaryResponse> {
