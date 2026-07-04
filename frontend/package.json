@@ -10,7 +10,6 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@rolldown/binding-win32-x64-msvc": "^1.1.2",
     "@tailwindcss/vite": "^4.3.1",
     "@uploadthing/react": "^7.3.3",
     "fabric": "^6.9.1",
