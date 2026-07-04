@@ -9,7 +9,7 @@ export default function Hero() {
       opacity: 1, 
       y: 0,
       filter: "blur(0px)",
-      transition: { duration: 0.6, ease: [0.22, 1, 0.36, 1] }
+      transition: { duration: 0.6, ease: [0.22, 1, 0.36, 1] as const}
     }
   };
 
@@ -19,7 +19,7 @@ export default function Hero() {
       opacity: 1, 
       y: 0,
       filter: "blur(0px)",
-      transition: { duration: 0.7, ease: [0.22, 1, 0.36, 1] }
+      transition: { duration: 0.7, ease: [0.22, 1, 0.36, 1] as const }
     }
   };
 
@@ -83,7 +83,7 @@ export default function Hero() {
             <motion.p 
               initial={{ opacity: 0, y: 10, filter: "blur(8px)" }}
               animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
-              transition={{ delay: 0.5, duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
+              transition={{ delay: 0.5, duration: 0.3, ease: [0.22, 1, 0.36, 1] as const }}
               className="text-[15px] md:text-[16px] text-slate-600 font-medium max-w-sm leading-relaxed mb-8 font-sans"
             >
               Everything you need to manage, edit,
@@ -98,7 +98,7 @@ export default function Hero() {
           <motion.div 
             initial={{ opacity: 0, filter: "blur(10px)" }}
             animate={{ opacity: 0.6, filter: "blur(0px)" }}
-            transition={{ delay: 2.8, duration: 1.5, ease: [0.22, 1, 0.36, 1] }}
+            transition={{ delay: 2.8, duration: 1.5, ease: [0.22, 1, 0.36, 1] as const }}
             className="hidden md:flex items-start pt-8 pr-8 select-none pointer-events-none"
           >
             <svg width="120" height="90" viewBox="0 0 120 90" fill="none" xmlns="http://www.w3.org/2000/svg">

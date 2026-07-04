@@ -1,7 +1,7 @@
 import { motion, AnimatePresence } from "framer-motion";
 import { ChevronDown, MessageSquareQuote } from "lucide-react";
 import { useState } from "react";
-import { Link } from "react-router-dom";
+
 
 const faqs = [
   {
@@ -173,7 +173,7 @@ export default function FAQPage() {
             <motion.span
               initial={{ opacity: 0, y: 20, filter: "blur(15px)" }}
               animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
-              transition={{ delay: 0.8, duration: 1, ease: [0.16, 1, 0.3, 1] }}
+              transition={{ delay: 0.8, duration: 1, ease: [0.16, 1, 0.3, 1] as const }}
               className="text-[#8B5CF6] block mt-1"
             >
               questions

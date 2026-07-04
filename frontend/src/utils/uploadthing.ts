@@ -1,5 +1,13 @@
 import { generateReactHelpers } from "@uploadthing/react";
-import type { OurFileRouter } from "../../../backend/src/uploadthing";
+export type OurFileRouter = {
+  pdfUploader: {
+    input: undefined;
+    output: {
+      fileKey: string;
+      url: string;
+    };
+  };
+};
 
 const apiUrl = import.meta.env.VITE_API_URL || "http://localhost:3001";
 

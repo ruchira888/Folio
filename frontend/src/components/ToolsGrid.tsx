@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
   Search, LayoutGrid, ShieldCheck, EyeOff, Monitor
@@ -62,7 +62,7 @@ export default function ToolsGrid({
       filter: "blur(0px)",
       transition: { 
         duration: 1.2, 
-        ease: [0.16, 1, 0.3, 1],
+        ease: [0.16, 1, 0.3, 1] as const,
         delay: 2.4, 
         staggerChildren: 0.1,
         delayChildren: 2.6
@@ -76,7 +76,7 @@ export default function ToolsGrid({
       opacity: 1, 
       y: 0,
       filter: "blur(0px)",
-      transition: { duration: 0.8, ease: [0.22, 1, 0.36, 1] }
+      transition: { duration: 0.8, ease: [0.22, 1, 0.36, 1] as const }
     }
   };
 
@@ -196,7 +196,7 @@ export default function ToolsGrid({
           initial={{ opacity: 0, filter: "blur(10px)" }}
           whileInView={{ opacity: 1, filter: "blur(0px)" }}
           viewport={{ once: true }}
-          transition={{ delay: 0.5, duration: 1, ease: [0.16, 1, 0.3, 1] }}
+          transition={{ delay: 0.5, duration: 1, ease: [0.16, 1, 0.3, 1] as const }}
           className="grid grid-cols-1 sm:grid-cols-3 gap-5 pt-8 mt-8 border-t border-slate-100/60 text-center font-sans"
         >
           <div className="flex items-center justify-center gap-2 text-slate-400 font-medium text-[12.5px]">
