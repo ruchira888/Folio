@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
-  ArrowLeft, Search, ShieldCheck, EyeOff, Monitor, LayoutGrid
+  ArrowLeft, Search, ShieldCheck, EyeOff, Monitor
 } from 'lucide-react';
 import { isModalTool, TOOL_MODAL_CONFIG, type ToolType } from '../config/toolConfigs';
 import { TOOLS } from '../config/tools';
