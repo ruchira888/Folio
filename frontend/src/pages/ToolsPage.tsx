@@ -121,7 +121,7 @@ export default function ToolsPage({ setActiveTool }: ToolsPageProps) {
           )}
 
           {/* Special "Add more tools" card */}
-          <div className="bg-[#F8F7FF] border border-[#EDE9FF] rounded-2xl p-5 md:p-6 flex flex-col sm:flex-row items-center justify-between gap-4 mt-2">
+          {/* <div className="bg-[#F8F7FF] border border-[#EDE9FF] rounded-2xl p-5 md:p-6 flex flex-col sm:flex-row items-center justify-between gap-4 mt-2">
             <div className="flex items-center gap-4">
               <div className="p-3 rounded-xl bg-white shadow-sm shrink-0">
                 <LayoutGrid className="w-5 h-5 text-[#6366F1]" />
@@ -139,7 +139,7 @@ export default function ToolsPage({ setActiveTool }: ToolsPageProps) {
               <LayoutGrid className="w-4 h-4" />
               View all tools
             </button>
-          </div>
+          </div> */}
         </div>
 
         {/* Footer */}

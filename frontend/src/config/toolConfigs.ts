@@ -249,8 +249,8 @@ export const TOOL_MODAL_CONFIG: Record<ToolType, ToolModalConfig> = {
     tagColor: "text-[#4F46E5]",
   },
   "convert-pdf": {
-    title: "Convert PDF to JPG",
-    description: "Convert your PDF to Word, Excel, PPT, JPG and more.",
+    title: "More conversion tools coming soon.",
+    description: "",
     icon: FileText,
     iconBg: "bg-white",
     iconColor: "text-[#0D9488]",
@@ -328,7 +328,6 @@ export const MODAL_TOOL_IDS: ToolType[] = [
   "compress",
   "watermark",
   "page-numbers",
-  "convert-pdf",
 ];
 
 export function isModalTool(id: string): id is ToolType {
