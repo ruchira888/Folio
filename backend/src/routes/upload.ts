@@ -9,7 +9,7 @@ export const uploadRouter=express.Router()
   //rate limi
   const uploadRateLimit=rateLimit({
     windowMs:24*60*60*1000,
-    max:7,
+    max:30,
     message:{
       success:false,
       error:'Daily upload limit reached.Upgrade to Pro for unlimited uploads'
