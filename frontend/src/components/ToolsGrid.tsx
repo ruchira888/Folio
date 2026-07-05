@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
-  Search, LayoutGrid, ShieldCheck, EyeOff, Monitor
+  Search, ShieldCheck, EyeOff, Monitor
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import ToolCard from './ToolCard';
