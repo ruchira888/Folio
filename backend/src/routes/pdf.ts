@@ -765,7 +765,21 @@ pdfRouter.post(
         success: true,
         data: result,
       } as ApiResponse<TranslatePdfResult>);
-    } catch (err) {
+    } catch (err: any) {
+      if (
+        typeof err?.message === "string" &&
+        err.message.startsWith("MISSING_UNICODE_FONT:")
+      ) {
+        const lang =
+          err.message.split(":")[1] || String(req.body?.targetLanguage || "hi");
+        res.status(500).json({
+          success: false,
+          error:
+            `Translation font for '${lang}' is missing on the server. ` +
+            `Set PDF_TRANSLATION_FONT_${lang.toUpperCase().replace(/[^A-Z0-9]/g, "_")}_PATH to a Unicode font (for Hindi use Noto Sans Devanagari), or include backend/assets/fonts in the deployment bundle.`,
+        });
+        return;
+      }
       next(err);
     }
   },

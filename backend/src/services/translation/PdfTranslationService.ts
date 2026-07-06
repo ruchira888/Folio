@@ -78,6 +78,157 @@ type TextLine = {
   fontSize: number;
 };
 
+const LANGUAGE_SCRIPT_SENTINELS: Record<string, number[]> = {
+  hi: [0x0905, 0x0915, 0x093e, 0x094d], // Devanagari essentials
+  ja: [0x3042, 0x30a2, 0x65e5],
+  "zh-cn": [0x4e2d, 0x56fd],
+  ko: [0xd55c, 0xae00],
+};
+
+function getLanguageFontCandidates(langLower: string): string[] {
+  const envGeneral = process.env.PDF_TRANSLATION_FONT_PATH;
+  const envByLang =
+    process.env[
+      `PDF_TRANSLATION_FONT_${langLower.toUpperCase().replace(/[^A-Z0-9]/g, "_")}_PATH`
+    ];
+
+  const bundledCandidates = [
+    // Monorepo root cwd (e.g. process started at repo root)
+    path.resolve(
+      process.cwd(),
+      "backend",
+      "assets",
+      "fonts",
+      "NotoSansDevanagari-Regular.ttf",
+    ),
+    // Backend cwd (e.g. process started from backend/)
+    path.resolve(
+      process.cwd(),
+      "assets",
+      "fonts",
+      "NotoSansDevanagari-Regular.ttf",
+    ),
+    // Backend cwd with copied dist assets
+    path.resolve(
+      process.cwd(),
+      "dist",
+      "assets",
+      "fonts",
+      "NotoSansDevanagari-Regular.ttf",
+    ),
+    // Dist runtime path: dist/services/translation -> dist/assets
+    path.resolve(
+      __dirname,
+      "..",
+      "..",
+      "..",
+      "assets",
+      "fonts",
+      "NotoSansDevanagari-Regular.ttf",
+    ),
+    // Source runtime path: src/services/translation -> backend/assets
+    // Dist fallback when process is launched from parent cwd.
+    path.resolve(
+      __dirname,
+      "..",
+      "..",
+      "..",
+      "..",
+      "assets",
+      "fonts",
+      "NotoSansDevanagari-Regular.ttf",
+    ),
+  ];
+
+  const langSpecific =
+    langLower === "hi"
+      ? [
+          "C:\\Windows\\Fonts\\Nirmala.ttc",
+          "C:\\Windows\\Fonts\\Mangal.ttf",
+          "/usr/share/fonts/truetype/noto/NotoSansDevanagari-Regular.ttf",
+          "/usr/share/fonts/opentype/noto/NotoSansDevanagari-Regular.ttf",
+          "/usr/share/fonts/truetype/lohit-devanagari/Lohit-Devanagari.ttf",
+          "/usr/share/fonts/truetype/ttf-indic-fonts-core/lohit_hi.ttf",
+          "/System/Library/Fonts/Supplemental/KohinoorDevanagari.ttc",
+        ]
+      : langLower === "ja"
+        ? ["C:\\Windows\\Fonts\\msgothic.ttc"]
+        : langLower === "zh-cn"
+          ? ["C:\\Windows\\Fonts\\simsun.ttc"]
+          : langLower === "ko"
+            ? ["C:\\Windows\\Fonts\\malgun.ttf"]
+            : [];
+
+  const generic = [
+    "C:\\Windows\\Fonts\\arial.ttf",
+    "C:\\Windows\\Fonts\\Arial.ttf",
+    "/Library/Fonts/Arial.ttf",
+    "/System/Library/Fonts/Supplemental/Arial.ttf",
+    "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+    "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
+  ];
+
+  return Array.from(
+    new Set(
+      [envByLang, envGeneral, ...bundledCandidates, ...langSpecific, ...generic]
+        .filter((p): p is string => !!p && p.trim().length > 0)
+        .map((p) => p.trim()),
+    ),
+  );
+}
+
+function fontSupportsLanguage(fontBytes: Buffer, langLower: string): boolean {
+  const sentinels = LANGUAGE_SCRIPT_SENTINELS[langLower];
+  if (!sentinels || sentinels.length === 0) return true;
+
+  try {
+    const parsed: any = fontkit.create(fontBytes);
+    if (!parsed || typeof parsed.hasGlyphForCodePoint !== "function")
+      return false;
+    return sentinels.every((codepoint) =>
+      parsed.hasGlyphForCodePoint(codepoint),
+    );
+  } catch {
+    return false;
+  }
+}
+
+async function downloadLanguageFontFallback(
+  langLower: string,
+): Promise<Buffer | null> {
+  const urls =
+    langLower === "hi"
+      ? [
+          "https://raw.githubusercontent.com/google/fonts/main/ofl/hind/Hind-Regular.ttf",
+          "https://raw.githubusercontent.com/google/fonts/main/ofl/notosansdevanagari/NotoSansDevanagari%5Bwdth,wght%5D.ttf",
+        ]
+      : [];
+
+  for (const url of urls) {
+    try {
+      const response = await fetch(url);
+      if (!response.ok) {
+        logger.warn(
+          `Font fallback download failed (${response.status}): ${url}`,
+        );
+        continue;
+      }
+      const arrayBuffer = await response.arrayBuffer();
+      const bytes = Buffer.from(arrayBuffer);
+      if (!fontSupportsLanguage(bytes, langLower)) {
+        logger.warn(`Downloaded font lacks required glyph coverage: ${url}`);
+        continue;
+      }
+      logger.info(`Using downloaded fallback font for ${langLower}: ${url}`);
+      return bytes;
+    } catch (err) {
+      logger.warn(`Error downloading fallback font ${url}:`, err);
+    }
+  }
+
+  return null;
+}
+
 function clampSpace(text: string): string {
   return text.replace(/\s+/g, " ").trim();
 }
@@ -196,38 +347,52 @@ export class PdfTranslationService {
 
     // 3. Prepare Unicode-supporting font based on target language
     const langLower = targetLanguage.toLowerCase();
-    let selectedFontPath = "C:\\Windows\\Fonts\\arial.ttf";
-    if (langLower === "hi") {
-      selectedFontPath = "C:\\Windows\\Fonts\\Nirmala.ttc";
-    } else if (langLower === "ja") {
-      selectedFontPath = "C:\\Windows\\Fonts\\msgothic.ttc";
-    } else if (langLower === "zh-cn") {
-      selectedFontPath = "C:\\Windows\\Fonts\\simsun.ttc";
-    } else if (langLower === "ko") {
-      selectedFontPath = "C:\\Windows\\Fonts\\malgun.ttf";
-    }
+    const requiredScript = !!LANGUAGE_SCRIPT_SENTINELS[langLower];
+    const fontPaths = getLanguageFontCandidates(langLower);
 
-    const FONT_PATHS = [
-      selectedFontPath,
-      "C:\\Windows\\Fonts\\arial.ttf",
-      "C:\\Windows\\Fonts\\Arial.ttf",
-      "/Library/Fonts/Arial.ttf",
-      "/System/Library/Fonts/Supplemental/Arial.ttf",
-      "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
-      "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
-    ];
+    if (langLower === "hi") {
+      logger.info(
+        `Hindi font candidate scan started (cwd=${process.cwd()}, dir=${__dirname})`,
+      );
+      for (const fontPath of fontPaths) {
+        logger.info(`Hindi font path: ${fontPath}`);
+        logger.info(`Font exists: ${fs.existsSync(fontPath)}`);
+      }
+    }
 
     let font;
     let fontBytes: Buffer | null = null;
 
-    for (const fontPath of FONT_PATHS) {
-      if (fs.existsSync(fontPath)) {
-        try {
-          fontBytes = fs.readFileSync(fontPath);
-          break;
-        } catch (err) {
-          logger.warn(`Failed to read font at ${fontPath}:`, err);
+    for (const fontPath of fontPaths) {
+      if (!fs.existsSync(fontPath)) continue;
+      try {
+        const candidateBytes = fs.readFileSync(fontPath);
+        if (
+          requiredScript &&
+          !fontSupportsLanguage(candidateBytes, langLower)
+        ) {
+          logger.warn(
+            `Skipping font without required glyph coverage: ${fontPath}`,
+          );
+          continue;
         }
+        fontBytes = candidateBytes;
+        logger.info(`Using translation font: ${fontPath}`);
+        break;
+      } catch (err) {
+        logger.warn(`Failed to read font at ${fontPath}:`, err);
+      }
+    }
+
+    if (!fontBytes && requiredScript) {
+      if (langLower === "hi") {
+        logger.warn(
+          "No local Hindi Unicode font found. Trying download fallback...",
+        );
+      }
+      fontBytes = await downloadLanguageFontFallback(langLower);
+      if (langLower === "hi") {
+        logger.info(`Downloaded Hindi fallback font: ${!!fontBytes}`);
       }
     }
 
@@ -239,13 +404,19 @@ export class PdfTranslationService {
           `Successfully embedded font for language ${targetLanguage} translation.`,
         );
       } catch (err) {
-        logger.error(
-          "Error embedding system font, falling back to Standard Helvetica:",
-          err,
-        );
+        logger.error("Error embedding selected translation font:", err);
+        if (requiredScript) {
+          throw new Error(`MISSING_UNICODE_FONT:${targetLanguage}`);
+        }
         font = await pdfDoc.embedFont(StandardFonts.Helvetica);
       }
     } else {
+      if (requiredScript) {
+        logger.error(
+          `No compatible Unicode font found for ${targetLanguage}. Checked candidates: ${fontPaths.join(" | ")}`,
+        );
+        throw new Error(`MISSING_UNICODE_FONT:${targetLanguage}`);
+      }
       logger.warn(
         "No system TrueType font found, falling back to Standard Helvetica.",
       );
@@ -270,7 +441,7 @@ export class PdfTranslationService {
           continue;
         }
 
-        // Translate the whole page's lines in a single batch (highly accurate context)
+        // Translate the page in batch first for context.
         const pageText = nonBlankLines.map((l) => l.text).join("\n");
         logger.info(
           `Translating page ${pageIndex}/${pdfJsDoc.numPages} (${nonBlankLines.length} lines)`,
@@ -279,9 +450,22 @@ export class PdfTranslationService {
           pageText,
           targetLanguage,
         );
-        const translatedLines = translatedText
-          .replace(/\r\n/g, "\n")
-          .split("\n");
+        let translatedLines = translatedText.replace(/\r\n/g, "\n").split("\n");
+
+        // If provider reflows lines, fallback to per-line translation for exact mapping.
+        if (translatedLines.length !== nonBlankLines.length) {
+          logger.warn(
+            `Line-count mismatch on page ${pageIndex}: source=${nonBlankLines.length}, translated=${translatedLines.length}. Falling back to per-line translation.`,
+          );
+          translatedLines = [];
+          for (const line of nonBlankLines) {
+            const translatedLine = await this.translator.translate(
+              line.text,
+              targetLanguage,
+            );
+            translatedLines.push(translatedLine);
+          }
+        }
 
         for (let i = 0; i < nonBlankLines.length; i++) {
           const line = nonBlankLines[i];

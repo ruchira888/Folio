@@ -26,6 +26,9 @@ const app = express();
 
 const PORT = process.env.PORT || 3001;
 
+// Trust first proxy (required on Render/other reverse proxies so req.ip is correct)
+app.set("trust proxy", 1);
+
 app.use(cors());
 app.use(express.json());
 
