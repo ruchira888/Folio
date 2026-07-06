@@ -90,7 +90,7 @@ export default function Hero() {
               <br className="hidden sm:inline" />
               and enhance your PDFs.
               <br />
-              Powered by <span className="text-[#EC4899] font-bold">AI</span>.
+              Files auto-delete after  <span className="text-[#EC4899] font-bold">45 mins</span>.
             </motion.p>
           </div>
 

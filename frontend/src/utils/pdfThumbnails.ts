@@ -1,7 +1,7 @@
-import { getDocument, GlobalWorkerOptions } from "pdfjs-dist";
-import pdfWorkerSrc from "pdfjs-dist/build/pdf.worker.min.mjs?url";
+import { getDocument } from "pdfjs-dist";
+import { configurePdfJsWorker } from "./pdfjsWorker";
 
-GlobalWorkerOptions.workerSrc = pdfWorkerSrc;
+configurePdfJsWorker();
 
 export interface PdfThumbnail {
   pageNumber: number;

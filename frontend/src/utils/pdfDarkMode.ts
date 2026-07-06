@@ -6,12 +6,12 @@
  */
 
 import * as pdfjsLib from "pdfjs-dist";
-import pdfWorkerSrc from "pdfjs-dist/build/pdf.worker.min.mjs?url";
+import { configurePdfJsWorker } from "./pdfjsWorker";
 
 // ------------------------------------------------------------------ //
 // pdfjs worker setup
 // ------------------------------------------------------------------ //
-pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorkerSrc;
+configurePdfJsWorker();
 
 // ------------------------------------------------------------------ //
 // Constants

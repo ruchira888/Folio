@@ -16,7 +16,7 @@ import {
   Check,
 } from "lucide-react";
 import * as pdfjsLib from "pdfjs-dist";
-import pdfWorkerSrc from "pdfjs-dist/build/pdf.worker.min.mjs?url";
+import { configurePdfJsWorker } from "../utils/pdfjsWorker";
 import { PDFDocument, rgb, StandardFonts } from "pdf-lib";
 import ModalOverlay from "./ModalOverlay";
 import ToolModal from "./ToolModal";
@@ -24,7 +24,7 @@ import { validateToolFiles } from "../utils/validateToolFiles";
 import { extractPdfTextBlocks } from "../utils/pdfTextExtract";
 
 // ─── PDF.js worker setup ───────────────────────────────────────────────────────
-pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorkerSrc;
+configurePdfJsWorker();
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
 type EditorMode = "selection" | "edit" | "textbox" | "signature" | "highlight";
