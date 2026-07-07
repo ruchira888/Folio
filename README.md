@@ -1,6 +1,8 @@
 <h1 align="center">Folio</h1>
 
-Folio is a full-stack PDF utility platform with a polished React frontend and an Express/TypeScript backend.
+Folio is a full-stack PDF platform with a React frontend and an Express/TypeScript backend.
+
+No login required
 
 Upload a PDF once, then run tools like summarize, translate, annotate, merge, dark mode conversion, watermarking, page-numbering, protection, markdown export, thumbnail generation, and PDF-to-JPG conversion.
 
