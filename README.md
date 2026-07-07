@@ -1,4 +1,4 @@
-# Folio
+<h1 align="center">Folio</h1>
 
 Folio is a full-stack PDF utility platform with a polished React frontend and an Express/TypeScript backend.
 
@@ -33,33 +33,53 @@ All flows are centered around `fileId`-based operations.
 ---
 
 ## System architecture
-
 ```mermaid
 flowchart TD
-    U[User Browser\nReact + Vite frontend] -->|Upload file| UT[UploadThing]
-    U -->|POST /api/upload/complete| B[Express API\nbackend/src/index.ts]
+
+    U["User Browser<br/>React + Vite Frontend"]
+    UT["UploadThing Storage"]
+
+    B["Express API<br/>Backend"]
+
+    R["Upload Router<br/>Register and Read Metadata"]
+    P["PDF Router<br/>PDF Tool Operations"]
+
+    S["Storage Provider<br/>UploadThing Provider"]
+
+    T1["Summarization Service<br/>Gemini / Groq"]
+    T2["Translation Service<br/>TranslatePlus + PDF Overlay"]
+    T3["PDF Processing Services<br/>Merge<br/>Delete Pages<br/>Protect<br/>Watermark<br/>Page Numbers<br/>Markdown<br/>Dark Mode<br/>Thumbnails<br/>PDF to JPG"]
+
+    F["Font Resolution<br/>Unicode Support"]
+
+    AI["LLM API"]
+    TR["TranslatePlus API"]
+
+    C["File Reconciler<br/>Cleanup Expired Files"]
+
+    U -->|Upload PDF| UT
+    U -->|POST /api/upload/complete| B
     U -->|POST /api/pdf/*| B
 
-    B --> R[Upload router\nregister/read file metadata]
-    B --> P[PDF router\nall PDF tools]
+    B --> R
+    B --> P
 
-    R --> S[(Storage Provider\nUploadThingProvider)]
+    R --> S
     P --> S
 
-    P --> T1[Summarization service\nGemini/Groq]
-    P --> T2[Translation service\nTranslatePlus + pdf-lib overlay]
-    P --> T3[PDF processing services\nmerge/delete/protect/watermark\npage numbers/markdown/dark mode\nthumbnails/to-jpg]
+    P --> T1
+    P --> T2
+    P --> T3
 
-    T2 --> F[Bundled + env font resolution\nUnicode checks for complex scripts]
+    T1 --> AI
+    T2 --> TR
+    T2 --> F
 
-    T1 --> AI[LLM API]
-    T2 --> TR[TranslatePlus API]
-    P --> UT
+    T3 --> UT
+    S --> UT
 
-    B --> C[File reconciler\nexpires old records]
+    B --> C
 ```
-
----
 
 ## Core features
 
@@ -165,6 +185,6 @@ Set UploadThing credentials required by your UploadThing setup (server-side envi
 - File records are time-bound and cleaned up by a reconciler.
 - API is proxy-aware (`trust proxy`) for production deployments.
 - Frontend and backend pin `pdfjs-dist` to the same version (`5.7.284`) to avoid API/worker mismatch issues.
-- Translation route returns explicit errors for missing Unicode font scenarios.
+  
 
 ---
