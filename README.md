@@ -186,7 +186,7 @@ Set UploadThing credentials required by your UploadThing setup (server-side envi
 
 - File records are time-bound and cleaned up by a reconciler.
 - API is proxy-aware (`trust proxy`) for production deployments.
-- Frontend and backend pin `pdfjs-dist` to the same version (`5.7.284`) to avoid API/worker mismatch issues.
+
   
 
 ---
