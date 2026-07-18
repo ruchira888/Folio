@@ -1,4 +1,4 @@
-﻿import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import {
   X,
   Download,
@@ -46,6 +46,8 @@ interface TextAnnotation {
   fontSize: number;
   /** Hex colour */
   color: string;
+  /** Opacity (0 to 1) */
+  opacity?: number;
   /**
    * Best-effort background colour under the original text (used to "cover" the old
    * text when writing the replacement back into the PDF).
@@ -794,6 +796,10 @@ export default function AnnotatePdfModal({
   const canvasRefs = useRef<(HTMLCanvasElement | null)[]>([]);
   const pageContainerRefs = useRef<(HTMLDivElement | null)[]>([]);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
+  /** When true, textarea onBlur should NOT dismiss editing state (e.g. user is clicking font-size select). */
+  const textboxControlsActiveRef = useRef(false);
+  /** Tracks whether a textbox is currently being dragged so click handlers can bail out. */
+  const textboxDraggedRef = useRef(false);
 
   const reloadPdfFromBytes = useCallback(async (bytes: ArrayBuffer) => {
     setLoading(true);
@@ -1541,6 +1547,7 @@ export default function AnnotatePdfModal({
           text: "",
           fontSize: 12,
           color: "#000000",
+          opacity: 1,
         };
 
         pushTextboxState([...getUserTextboxes(), newAnnotation]);
@@ -1551,6 +1558,53 @@ export default function AnnotatePdfModal({
       window.addEventListener("mouseup", onUp);
     },
     [mode, scale, pushTextboxState, getUserTextboxes],
+  );
+
+  // ── Handle textbox drag on page (reposition) ──
+  const handleTextboxDrag = useCallback(
+    (annotationId: string, e: React.MouseEvent, pageIndex: number) => {
+      if (mode !== "textbox") return;
+      e.stopPropagation();
+      e.preventDefault();
+
+      const container = pageContainerRefs.current[pageIndex];
+      if (!container) return;
+
+      const displayScale = RENDER_SCALE * scale;
+      const startX = e.clientX;
+      const startY = e.clientY;
+      const annotation = textAnnotations.find(
+        (a) => a.id === annotationId && !a.isExtracted,
+      );
+      if (!annotation) return;
+      const origX = annotation.x;
+      const origY = annotation.y;
+      textboxDraggedRef.current = false;
+
+      const onMove = (me: MouseEvent) => {
+        const dx = (me.clientX - startX) / displayScale;
+        const dy = (me.clientY - startY) / displayScale;
+        if (Math.abs(dx) > 2 || Math.abs(dy) > 2) {
+          textboxDraggedRef.current = true;
+        }
+        setTextAnnotations((prev) =>
+          prev.map((a) =>
+            a.id === annotationId ? { ...a, x: origX + dx, y: origY + dy } : a,
+          ),
+        );
+      };
+
+      const onUp = () => {
+        window.removeEventListener("mousemove", onMove);
+        window.removeEventListener("mouseup", onUp);
+        // Reset after a tick so click handlers can check it
+        setTimeout(() => { textboxDraggedRef.current = false; }, 0);
+      };
+
+      window.addEventListener("mousemove", onMove);
+      window.addEventListener("mouseup", onUp);
+    },
+    [mode, scale, textAnnotations],
   );
 
   // ── Handle signature drag on page (reposition) ──
@@ -2549,7 +2603,12 @@ export default function AnnotatePdfModal({
                                         ),
                                       }),
                                 }}
-                                className={`group ${isEditing ? "z-30" : "z-10"} ${isEditing ? "" : "cursor-text"}`}
+                                className={`group ${isEditing ? "z-30" : "z-10"} ${isEditing ? "" : !ann.isExtracted ? "cursor-grab" : "cursor-text"}`}
+                                onMouseDown={(e) => {
+                                  if (!ann.isExtracted && !isEditing && mode === "textbox") {
+                                    handleTextboxDrag(ann.id, e, pageIndex);
+                                  }
+                                }}
                               >
                                 {isEditing ? (
                                   <div className="relative">
@@ -2577,6 +2636,9 @@ export default function AnnotatePdfModal({
                                         )
                                       }
                                       onBlur={() => {
+                                        // If user is interacting with annotation controls (color, font size, delete),
+                                        // don't dismiss the editing state.
+                                        if (textboxControlsActiveRef.current) return;
                                         if (
                                           !ann.isExtracted &&
                                           !ann.text.trim()
@@ -2618,6 +2680,7 @@ export default function AnnotatePdfModal({
                                       style={{
                                         fontSize: `${pdfPointsToCss(ann.fontSize, displayScale)}px`,
                                         color: ann.color,
+                                        opacity: ann.opacity ?? 1,
                                         fontFamily:
                                           "Helvetica, Arial, sans-serif",
                                         lineHeight: 1.2,
@@ -2631,8 +2694,13 @@ export default function AnnotatePdfModal({
                                         className="absolute -top-8 left-0 flex items-center gap-1 rounded-lg border border-slate-200 bg-white p-1 shadow-lg"
                                         onMouseDown={(e) => {
                                           // Prevent textarea blur before control click handlers run.
+                                          textboxControlsActiveRef.current = true;
                                           e.preventDefault();
                                           e.stopPropagation();
+                                        }}
+                                        onMouseUp={() => {
+                                          // Re-focus the textarea after control interaction.
+                                          setTimeout(() => { textboxControlsActiveRef.current = false; }, 0);
                                         }}
                                       >
                                         <input
@@ -2656,29 +2724,94 @@ export default function AnnotatePdfModal({
                                         />
                                         <select
                                           value={ann.fontSize}
-                                          onChange={(e) =>
+                                          onChange={(e) => {
+                                            const newSize = parseInt(e.target.value);
                                             setTextAnnotations((prev) =>
                                               prev.map((a) =>
                                                 a.id === ann.id
                                                   ? {
                                                       ...a,
-                                                      fontSize: parseInt(
-                                                        e.target.value,
-                                                      ),
+                                                      fontSize: newSize,
+                                                      // Scale height proportionally so the textbox fits the new size
+                                                      height: Math.max(newSize * 1.5, a.height),
                                                     }
                                                   : a,
                                               ),
-                                            )
-                                          }
+                                            );
+                                            // Re-focus textarea after dropdown closes
+                                            setTimeout(() => {
+                                              const textarea = document.querySelector<HTMLTextAreaElement>(
+                                                `textarea[autofocus]`
+                                              );
+                                              textarea?.focus();
+                                            }, 0);
+                                          }}
+                                          onMouseDown={(e) => {
+                                            // Explicitly prevent blur when opening the dropdown
+                                            textboxControlsActiveRef.current = true;
+                                            e.stopPropagation();
+                                          }}
+                                          onBlur={() => {
+                                            // Reset control active state when dropdown closes
+                                            setTimeout(() => {
+                                              textboxControlsActiveRef.current = false;
+                                            }, 100);
+                                          }}
                                           className="rounded border border-slate-200 bg-white px-1 py-0.5 text-[10px] font-medium text-slate-600 outline-none"
                                           onClick={(e) => e.stopPropagation()}
+                                          title="Font size"
                                         >
                                           {[
-                                            8, 10, 12, 14, 16, 18, 20, 24, 28,
+                                            4, 6, 8, 10, 12, 14, 16, 18, 20, 24, 28,
                                             32, 36, 48,
                                           ].map((s) => (
                                             <option key={s} value={s}>
                                               {s}pt
+                                            </option>
+                                          ))}
+                                        </select>
+                                        <select
+                                          value={ann.opacity ?? 1}
+                                          onChange={(e) => {
+                                            const newOpacity = parseFloat(e.target.value);
+                                            setTextAnnotations((prev) =>
+                                              prev.map((a) =>
+                                                a.id === ann.id
+                                                  ? {
+                                                      ...a,
+                                                      opacity: newOpacity,
+                                                    }
+                                                  : a,
+                                              ),
+                                            );
+                                            // Re-focus textarea after dropdown closes
+                                            setTimeout(() => {
+                                              const textarea = document.querySelector<HTMLTextAreaElement>(
+                                                `textarea[autofocus]`
+                                              );
+                                              textarea?.focus();
+                                            }, 0);
+                                          }}
+                                          onMouseDown={(e) => {
+                                            // Explicitly prevent blur when opening the dropdown
+                                            textboxControlsActiveRef.current = true;
+                                            e.stopPropagation();
+                                          }}
+                                          onBlur={() => {
+                                            // Reset control active state when dropdown closes
+                                            setTimeout(() => {
+                                              textboxControlsActiveRef.current = false;
+                                            }, 100);
+                                          }}
+                                          className="rounded border border-slate-200 bg-white px-1 py-0.5 text-[10px] font-medium text-slate-600 outline-none"
+                                          onClick={(e) => e.stopPropagation()}
+                                          title="Opacity"
+                                        >
+                                          {[
+                                            1, 0.9, 0.8, 0.7, 0.6, 0.5, 0.4, 0.3, 0.2, 0.1
+                                          ].map((o) => (
+                                            <option key={o} value={o}>
+                                              {Math.round(o * 100)}%
                                             </option>
                                           ))}
                                         </select>
@@ -2722,6 +2855,7 @@ export default function AnnotatePdfModal({
                                             style={{
                                               fontSize: `${pdfPointsToCss(ann.fontSize, displayScale)}px`,
                                               color: ann.color,
+                                              opacity: ann.opacity ?? 1,
                                               fontFamily:
                                                 "Helvetica, Arial, sans-serif",
                                               lineHeight: 1.1,
@@ -2732,22 +2866,26 @@ export default function AnnotatePdfModal({
                                         </button>
                                       ) : (
                                         <div
-                                          className="h-full rounded-md px-2 py-1 transition-all"
+                                          className={`h-full rounded-md px-2 py-1 transition-all ${!ann.isExtracted ? "border-2 border-dashed border-[#007AFF]/30 hover:border-[#007AFF]/70" : ""}`}
                                           onClick={(e) => {
                                             e.stopPropagation();
+                                            // Don't enter edit mode if we just finished dragging
+                                            if (textboxDraggedRef.current) return;
                                             setEditingAnnotation(ann.id);
                                           }}
                                           style={{
                                             fontSize: `${pdfPointsToCss(ann.fontSize, displayScale)}px`,
                                             color: ann.color,
+                                            opacity: ann.opacity ?? 1,
                                             fontFamily:
                                               "Helvetica, Arial, sans-serif",
                                             lineHeight: 1.2,
+                                            cursor: !ann.isExtracted ? "grab" : "text",
                                           }}
                                         >
                                           {ann.text || (
                                             <span className="text-xs text-slate-400">
-                                              Insert text here
+                                              Click to type, drag to move
                                             </span>
                                           )}
                                         </div>
