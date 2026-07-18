@@ -3,10 +3,6 @@
   "private": true,
   "version": "0.0.0",
   "type": "module",
-
-
- 
-
   "scripts": {
     "dev": "node ./node_modules/vite/bin/vite.js",
     "build": "node ./node_modules/typescript/bin/tsc -b && node ./node_modules/vite/bin/vite.js build",
@@ -16,6 +12,7 @@
   "dependencies": {
     "@tailwindcss/vite": "^4.3.1",
     "@uploadthing/react": "^7.3.3",
+    "@vercel/analytics": "^2.0.1",
     "fabric": "^6.9.1",
     "framer-motion": "^12.41.0",
     "lucide-react": "^1.21.0",
