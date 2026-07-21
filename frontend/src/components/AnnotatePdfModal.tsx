@@ -14,10 +14,11 @@ import {
   ZoomIn,
   ZoomOut,
   Check,
+  RotateCw,
 } from "lucide-react";
 import * as pdfjsLib from "pdfjs-dist";
 import { configurePdfJsWorker } from "../utils/pdfjsWorker";
-import { PDFDocument, rgb, StandardFonts } from "pdf-lib";
+import { PDFDocument, rgb, StandardFonts, degrees } from "pdf-lib";
 import ModalOverlay from "./ModalOverlay";
 import ToolModal from "./ToolModal";
 import { validateToolFiles } from "../utils/validateToolFiles";
@@ -88,6 +89,8 @@ interface SignatureAnnotation {
   width: number;
   /** Height in PDF points */
   height: number;
+  /** clockwise rotation in degrees around the centre */
+  rotation: number;
   /** Base64 PNG data URL */
   imageDataUrl: string;
 }
@@ -600,7 +603,7 @@ function SignatureCreator({
           </h3>
           <button
             onClick={onClose}
-            className="rounded-full p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-colors"
+            className="cursor-pointer rounded-full p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-colors"
           >
             <X className="h-5 w-5" />
           </button>
@@ -612,7 +615,7 @@ function SignatureCreator({
             <button
               key={t.id}
               onClick={() => setTab(t.id)}
-              className={`flex-1 flex items-center justify-center gap-2 py-3 text-sm font-medium transition-all border-b-2 ${
+              className={`flex-1 flex cursor-pointer items-center justify-center gap-2 py-3 text-sm font-medium transition-all border-b-2 ${
                 tab === t.id
                   ? "border-[#007AFF] text-[#007AFF]"
                   : "border-transparent text-slate-400 hover:text-slate-600"
@@ -641,7 +644,7 @@ function SignatureCreator({
               />
               <button
                 onClick={clearCanvas}
-                className="mt-2 text-xs font-medium text-slate-400 hover:text-slate-600 transition-colors"
+                className="mt-2 cursor-pointer text-xs font-medium text-slate-400 hover:text-slate-600 transition-colors"
               >
                 Clear
               </button>
@@ -699,7 +702,7 @@ function SignatureCreator({
         <div className="flex justify-end gap-3 border-t border-slate-100 px-6 py-4">
           <button
             onClick={onClose}
-            className="rounded-xl border border-slate-200 px-5 py-2.5 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-50"
+            className="cursor-pointer rounded-xl border border-slate-200 px-5 py-2.5 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-50"
           >
             Cancel
           </button>
@@ -710,7 +713,7 @@ function SignatureCreator({
               (tab === "type" && !typedName.trim()) ||
               (tab === "upload" && !uploadPreview)
             }
-            className="flex items-center gap-2 rounded-xl bg-[#007AFF] px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[#0062CC] disabled:cursor-not-allowed disabled:opacity-50"
+            className="flex cursor-pointer items-center gap-2 rounded-xl bg-[#007AFF] px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[#0062CC] disabled:cursor-not-allowed disabled:opacity-50"
           >
             <Check className="h-4 w-4" />
             Save Signature
@@ -784,6 +787,19 @@ export default function AnnotatePdfModal({
   const [showSignatureCreator, setShowSignatureCreator] = useState(false);
   const [draggingSignature, setDraggingSignature] =
     useState<SavedSignature | null>(null);
+  /** id of the signature the user has clicked to select, so its handles stay open */
+  const [selectedSignatureId, setSelectedSignatureId] = useState<string | null>(
+    null,
+  );
+  /** id of the signature being dragged, resized or rotated */
+  const [activeSignatureId, setActiveSignatureId] = useState<string | null>(
+    null,
+  );
+  /** live angle badge shown while rotating */
+  const [rotationHud, setRotationHud] = useState<{
+    id: string;
+    angle: number;
+  } | null>(null);
   const [textboxDraft, setTextboxDraft] = useState<TextboxDraft | null>(null);
   const [dragSelection, setDragSelection] = useState<DragSelectionRect | null>(
     null,
@@ -1266,6 +1282,12 @@ export default function AnnotatePdfModal({
         return;
       }
 
+      // clicking empty page area clears the signature selection
+      if (mode === "signature") {
+        setSelectedSignatureId(null);
+        return;
+      }
+
       if (mode !== "edit" || extractingText) return;
 
       const container = pageContainerRefs.current[pageIndex];
@@ -1451,10 +1473,12 @@ export default function AnnotatePdfModal({
         y: dropY - 20,
         width: 100,
         height: 40,
+        rotation: 0,
         imageDataUrl: draggingSignature.imageDataUrl,
       };
 
       setSignatureAnnotations((prev) => [...prev, newSigAnnotation]);
+      setSelectedSignatureId(newSigAnnotation.id);
       setDraggingSignature(null);
     },
     [draggingSignature, scale],
@@ -1626,6 +1650,8 @@ export default function AnnotatePdfModal({
       if (!annotation) return;
       const origX = annotation.x;
       const origY = annotation.y;
+      setSelectedSignatureId(annotationId);
+      setActiveSignatureId(annotationId);
 
       const onMove = (me: MouseEvent) => {
         const dx = (me.clientX - startX) / displayScale;
@@ -1640,6 +1666,7 @@ export default function AnnotatePdfModal({
       const onUp = () => {
         window.removeEventListener("mousemove", onMove);
         window.removeEventListener("mouseup", onUp);
+        setActiveSignatureId(null);
       };
 
       window.addEventListener("mousemove", onMove);
@@ -1648,7 +1675,7 @@ export default function AnnotatePdfModal({
     [mode, scale, signatureAnnotations],
   );
 
-  // ── Handle signature resize ──
+  // ── Handle signature resize (works while rotated, keeps opposite corner fixed) ──
   const handleSignatureResize = useCallback(
     (annotationId: string, e: React.MouseEvent) => {
       e.stopPropagation();
@@ -1663,17 +1690,37 @@ export default function AnnotatePdfModal({
       if (!annotation) return;
       const origW = annotation.width;
       const origH = annotation.height;
+      const rad = (annotation.rotation * Math.PI) / 180;
+      const cos = Math.cos(rad);
+      const sin = Math.sin(rad);
+      // centre of the box, in pdf points
+      const cx = annotation.x + origW / 2;
+      const cy = annotation.y + origH / 2;
+      // the corner opposite the handle, rotated into place, stays pinned while we resize
+      const anchorX = cx + (-origW / 2) * cos - (-origH / 2) * sin;
+      const anchorY = cy + (-origW / 2) * sin + (-origH / 2) * cos;
+      setActiveSignatureId(annotationId);
 
       const onMove = (me: MouseEvent) => {
         const dx = (me.clientX - startX) / displayScale;
         const dy = (me.clientY - startY) / displayScale;
+        // turn the screen delta into the box's own rotated axes
+        const localDx = dx * cos + dy * sin;
+        const localDy = -dx * sin + dy * cos;
+        const newW = Math.max(30, origW + localDx);
+        const newH = Math.max(15, origH + localDy);
+        // find the new centre so the pinned corner stays put
+        const newCx = anchorX + (newW / 2) * cos - (newH / 2) * sin;
+        const newCy = anchorY + (newW / 2) * sin + (newH / 2) * cos;
         setSignatureAnnotations((prev) =>
           prev.map((a) =>
             a.id === annotationId
               ? {
                   ...a,
-                  width: Math.max(30, origW + dx),
-                  height: Math.max(15, origH + dy),
+                  width: newW,
+                  height: newH,
+                  x: newCx - newW / 2,
+                  y: newCy - newH / 2,
                 }
               : a,
           ),
@@ -1683,6 +1730,57 @@ export default function AnnotatePdfModal({
       const onUp = () => {
         window.removeEventListener("mousemove", onMove);
         window.removeEventListener("mouseup", onUp);
+        setActiveSignatureId(null);
+      };
+
+      window.addEventListener("mousemove", onMove);
+      window.addEventListener("mouseup", onUp);
+    },
+    [scale, signatureAnnotations],
+  );
+
+  // ── Handle signature rotation (hold shift to snap to 15 deg) ──
+  const handleSignatureRotate = useCallback(
+    (annotationId: string, e: React.MouseEvent, pageIndex: number) => {
+      e.stopPropagation();
+      e.preventDefault();
+
+      const container = pageContainerRefs.current[pageIndex];
+      const annotation = signatureAnnotations.find(
+        (a) => a.id === annotationId,
+      );
+      if (!container || !annotation) return;
+
+      const displayScale = RENDER_SCALE * scale;
+      const rect = container.getBoundingClientRect();
+      // centre of the signature in screen coordinates
+      const centreX =
+        rect.left + (annotation.x + annotation.width / 2) * displayScale;
+      const centreY =
+        rect.top + (annotation.y + annotation.height / 2) * displayScale;
+      setActiveSignatureId(annotationId);
+
+      const onMove = (me: MouseEvent) => {
+        // angle from centre to pointer; handle sits above, so add 90
+        const angleRad = Math.atan2(me.clientY - centreY, me.clientX - centreX);
+        let deg = (angleRad * 180) / Math.PI + 90;
+        if (me.shiftKey) deg = Math.round(deg / 15) * 15;
+        // wrap into -180 to 180 for a nicer readout
+        deg = ((((deg + 180) % 360) + 360) % 360) - 180;
+        const rounded = Math.round(deg);
+        setRotationHud({ id: annotationId, angle: rounded });
+        setSignatureAnnotations((prev) =>
+          prev.map((a) =>
+            a.id === annotationId ? { ...a, rotation: rounded } : a,
+          ),
+        );
+      };
+
+      const onUp = () => {
+        window.removeEventListener("mousemove", onMove);
+        window.removeEventListener("mouseup", onUp);
+        setActiveSignatureId(null);
+        setRotationHud(null);
       };
 
       window.addEventListener("mousemove", onMove);
@@ -1812,12 +1910,31 @@ export default function AnnotatePdfModal({
           image = await doc.embedJpg(bytes);
         }
 
-        page.drawImage(image, {
-          x: sig.x,
-          y: pageHeight - sig.y - sig.height,
-          width: sig.width,
-          height: sig.height,
-        });
+        if (sig.rotation) {
+          // pdf-lib rotates about the draw origin (image lower-left) and counts
+          // degrees counter-clockwise, but our screen rotation is clockwise.
+          // negate the angle and shift the origin so the image spins about its
+          // own centre, matching the preview.
+          const phi = (-sig.rotation * Math.PI) / 180;
+          const cx = sig.x + sig.width / 2;
+          const cy = pageHeight - (sig.y + sig.height / 2);
+          const hw = sig.width / 2;
+          const hh = sig.height / 2;
+          page.drawImage(image, {
+            x: cx - (hw * Math.cos(phi) - hh * Math.sin(phi)),
+            y: cy - (hw * Math.sin(phi) + hh * Math.cos(phi)),
+            width: sig.width,
+            height: sig.height,
+            rotate: degrees(-sig.rotation),
+          });
+        } else {
+          page.drawImage(image, {
+            x: sig.x,
+            y: pageHeight - sig.y - sig.height,
+            width: sig.width,
+            height: sig.height,
+          });
+        }
       }
 
       // Generate and download
@@ -2232,7 +2349,7 @@ export default function AnnotatePdfModal({
                         e.stopPropagation();
                         handleDeleteSavedSignature(sig.id);
                       }}
-                      className="absolute right-1.5 top-1.5 hidden rounded-full p-1 text-slate-300 hover:bg-red-50 hover:text-red-500 group-hover:block transition-colors"
+                      className="absolute right-1.5 top-1.5 hidden cursor-pointer rounded-full p-1 text-slate-300 hover:bg-red-50 hover:text-red-500 group-hover:block transition-colors"
                       aria-label="Delete signature"
                     >
                       <Trash2 className="h-3 w-3" />
@@ -2244,7 +2361,7 @@ export default function AnnotatePdfModal({
               <div className="border-t border-slate-100 p-3">
                 <button
                   onClick={() => setShowSignatureCreator(true)}
-                  className="flex w-full items-center justify-center gap-2 rounded-xl border-2 border-dashed border-slate-200 bg-slate-50 px-4 py-3 text-sm font-medium text-slate-500 transition-all hover:border-[#007AFF]/40 hover:bg-[#007AFF]/5 hover:text-[#007AFF]"
+                  className="flex w-full cursor-pointer items-center justify-center gap-2 rounded-xl border-2 border-dashed border-slate-200 bg-slate-50 px-4 py-3 text-sm font-medium text-slate-500 transition-all hover:border-[#007AFF]/40 hover:bg-[#007AFF]/5 hover:text-[#007AFF]"
                 >
                   <Plus className="h-4 w-4" />
                   New Signature
@@ -2261,18 +2378,50 @@ export default function AnnotatePdfModal({
                     {signatureAnnotations.map((sa) => (
                       <div
                         key={sa.id}
-                        className="flex items-center justify-between rounded-lg border border-slate-100 bg-slate-50 px-3 py-2"
+                        onClick={() => setSelectedSignatureId(sa.id)}
+                        className={`flex cursor-pointer items-center gap-2 rounded-lg border px-2.5 py-2 transition-colors ${
+                          selectedSignatureId === sa.id
+                            ? "border-[#007AFF]/40 bg-[#007AFF]/5"
+                            : "border-slate-100 bg-slate-50 hover:bg-slate-100"
+                        }`}
                       >
-                        <span className="text-xs text-slate-500">
+                        <img
+                          src={sa.imageDataUrl}
+                          alt=""
+                          className="h-6 w-9 flex-shrink-0 object-contain"
+                          style={{ transform: `rotate(${sa.rotation}deg)` }}
+                          draggable={false}
+                        />
+                        <span className="flex-1 text-xs text-slate-500">
                           Page {sa.pageIndex + 1}
                         </span>
+                        {sa.rotation !== 0 && (
+                          <button
+                            onClick={() =>
+                              setSignatureAnnotations((prev) =>
+                                prev.map((a) =>
+                                  a.id === sa.id ? { ...a, rotation: 0 } : a,
+                                ),
+                              )
+                            }
+                            className="flex cursor-pointer items-center gap-0.5 rounded text-[10px] font-semibold tabular-nums text-slate-400 transition-colors hover:text-[#007AFF]"
+                            title="Reset rotation"
+                          >
+                            <RotateCw className="h-3 w-3" />
+                            {sa.rotation}°
+                          </button>
+                        )}
                         <button
-                          onClick={() =>
+                          onClick={(e) => {
+                            e.stopPropagation();
                             setSignatureAnnotations((prev) =>
                               prev.filter((a) => a.id !== sa.id),
-                            )
-                          }
-                          className="text-slate-300 hover:text-red-500 transition-colors"
+                            );
+                            setSelectedSignatureId((cur) =>
+                              cur === sa.id ? null : cur,
+                            );
+                          }}
+                          className="cursor-pointer text-slate-300 hover:text-red-500 transition-colors"
                           aria-label="Remove placed signature"
                         >
                           <Trash2 className="h-3 w-3" />
@@ -2910,59 +3059,113 @@ export default function AnnotatePdfModal({
                       {/* ── Signature Annotation Overlays ── */}
                       {signatureAnnotations
                         .filter((a) => a.pageIndex === pageIndex)
-                        .map((sig) => (
-                          <div
-                            key={sig.id}
-                            data-annotation-overlay="true"
-                            style={{
-                              position: "absolute",
-                              left: pdfPointsToCss(sig.x, displayScale),
-                              top: pdfPointsToCss(sig.y, displayScale),
-                              width: pdfPointsToCss(sig.width, displayScale),
-                              height: pdfPointsToCss(sig.height, displayScale),
-                            }}
-                            className={`z-10 ${
-                              mode === "signature"
-                                ? "cursor-grab border-2 border-dashed border-[#007AFF]/40 rounded-lg hover:border-[#007AFF] group"
-                                : "pointer-events-none"
-                            }`}
-                            onMouseDown={(e) =>
-                              mode === "signature" &&
-                              handleSignatureDrag(sig.id, e, pageIndex)
-                            }
-                          >
-                            <img
-                              src={sig.imageDataUrl}
-                              alt="Signature"
-                              className="h-full w-full object-contain"
-                              draggable={false}
-                            />
-                            {mode === "signature" && (
-                              <>
-                                {/* Delete button */}
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    setSignatureAnnotations((prev) =>
-                                      prev.filter((a) => a.id !== sig.id),
-                                    );
-                                  }}
-                                  className="absolute -right-2 -top-2 hidden rounded-full bg-red-500 p-1 text-white shadow-md group-hover:block transition-all"
-                                  aria-label="Remove signature"
-                                >
-                                  <X className="h-3 w-3" />
-                                </button>
-                                {/* Resize handle */}
-                                <div
-                                  onMouseDown={(e) =>
-                                    handleSignatureResize(sig.id, e)
-                                  }
-                                  className="absolute -bottom-1.5 -right-1.5 hidden h-4 w-4 cursor-se-resize rounded-full border-2 border-[#007AFF] bg-white shadow-sm group-hover:block"
-                                />
-                              </>
-                            )}
-                          </div>
-                        ))}
+                        .map((sig) => {
+                          const isSelected = selectedSignatureId === sig.id;
+                          const isActive = activeSignatureId === sig.id;
+                          // once clicked, the signature stays selected and its
+                          // handles stay open, so you can reach the ones that
+                          // float outside the box. hover still previews them.
+                          const handleVisibility =
+                            isSelected || isActive
+                              ? "block"
+                              : "hidden group-hover:block";
+                          return (
+                            <div
+                              key={sig.id}
+                              data-annotation-overlay="true"
+                              style={{
+                                position: "absolute",
+                                left: pdfPointsToCss(sig.x, displayScale),
+                                top: pdfPointsToCss(sig.y, displayScale),
+                                width: pdfPointsToCss(sig.width, displayScale),
+                                height: pdfPointsToCss(sig.height, displayScale),
+                                transform: `rotate(${sig.rotation}deg)`,
+                                transformOrigin: "center",
+                              }}
+                              className={`z-10 ${
+                                mode === "signature"
+                                  ? `cursor-grab rounded-lg border-2 group ${
+                                      isSelected || isActive
+                                        ? "border-solid border-[#007AFF]"
+                                        : "border-dashed border-[#007AFF]/40 hover:border-[#007AFF]"
+                                    }`
+                                  : "pointer-events-none"
+                              }`}
+                              onMouseDown={(e) =>
+                                mode === "signature" &&
+                                handleSignatureDrag(sig.id, e, pageIndex)
+                              }
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              <img
+                                src={sig.imageDataUrl}
+                                alt="Signature"
+                                className="h-full w-full object-contain"
+                                draggable={false}
+                              />
+                              {mode === "signature" && (
+                                <>
+                                  {/* delete button */}
+                                  <button
+                                    onMouseDown={(e) => e.stopPropagation()}
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setSignatureAnnotations((prev) =>
+                                        prev.filter((a) => a.id !== sig.id),
+                                      );
+                                      setSelectedSignatureId((cur) =>
+                                        cur === sig.id ? null : cur,
+                                      );
+                                    }}
+                                    className={`absolute -right-2 -top-2 cursor-pointer rounded-full bg-red-500 p-1 text-white shadow-md transition-all hover:bg-red-600 ${handleVisibility}`}
+                                    aria-label="Remove signature"
+                                  >
+                                    <X className="h-3 w-3" />
+                                  </button>
+
+                                  {/* rotate handle, sits above the box with a connector line */}
+                                  {/* line runs from the box top up to the bottom of the circle */}
+                                  <div
+                                    className={`pointer-events-none absolute -top-6 left-1/2 h-6 w-px -translate-x-1/2 bg-[#007AFF]/50 ${handleVisibility}`}
+                                  />
+                                  <div
+                                    onMouseDown={(e) =>
+                                      handleSignatureRotate(
+                                        sig.id,
+                                        e,
+                                        pageIndex,
+                                      )
+                                    }
+                                    title="drag to rotate, hold shift to snap"
+                                    className={`absolute -top-[52px] left-1/2 grid h-7 w-7 -translate-x-1/2 place-items-center rounded-full border-2 border-[#007AFF] bg-white text-[#007AFF] shadow-sm hover:bg-[#007AFF] hover:text-white active:cursor-grabbing cursor-grab ${handleVisibility}`}
+                                  >
+                                    <RotateCw className="h-3.5 w-3.5" strokeWidth={2.5} />
+                                  </div>
+
+                                  {/* live angle badge while rotating */}
+                                  {rotationHud?.id === sig.id && (
+                                    <div
+                                      style={{
+                                        transform: `rotate(${-sig.rotation}deg)`,
+                                      }}
+                                      className="absolute -top-16 left-1/2 -translate-x-1/2 rounded-md bg-slate-900 px-2 py-0.5 text-[11px] font-semibold tabular-nums text-white shadow-lg"
+                                    >
+                                      {rotationHud.angle}°
+                                    </div>
+                                  )}
+
+                                  {/* resize handle */}
+                                  <div
+                                    onMouseDown={(e) =>
+                                      handleSignatureResize(sig.id, e)
+                                    }
+                                    className={`absolute -bottom-1.5 -right-1.5 h-4 w-4 cursor-se-resize rounded-full border-2 border-[#007AFF] bg-white shadow-sm ${handleVisibility}`}
+                                  />
+                                </>
+                              )}
+                            </div>
+                          );
+                        })}
                     </div>
                   </div>
                 );
